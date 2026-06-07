@@ -12,13 +12,16 @@ files:
 
 win:
   target:
-    - target: 7z
+    - target: nsis
       arch:
         - x64
 
-7z:
-  compression: normal
-
+nsis:
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
 
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
