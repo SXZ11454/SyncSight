@@ -1,106 +1,80 @@
 # SyncSight
 
-SyncSight 是一个基于 WebRTC 和 Electron 的实时屏幕共享应用，支持星型 (P2P) 和网状 (BT) 两种转发模式。
+SyncSight is a real-time screen sharing application built with WebRTC and Electron, supporting both Star (P2P) and Mesh (BT) forwarding modes.
 
-## 功能特性
+## Features
 
-### 核心功能
-- 🖥️ **屏幕/窗口共享** - 支持共享整个屏幕或单个应用程序窗口
-- 📹 **摄像头预览窗口** - 独立无边框摄像头窗口，支持按比例调整大小和置顶显示
-- 🎤 **音频捕获** - 支持系统声音和麦克风输入
-- 🔌 **多客户端连接** - 支持多个客户端同时接收流
+### Core Features
+- 🖥️ **Screen/Window Sharing** - Share entire screen or individual application windows
+- 📹 **Camera Preview Window** - Independent borderless camera window with aspect ratio preservation and always-on-top display
+- 🎤 **Audio Capture** - Support for system audio and microphone input
+- 🔌 **Multi-Client Connection** - Multiple clients can receive streams simultaneously
 
-### 网络模式
-- **星型模式 (P2P)** - 主机直接向每个客户端发送流，适合少量客户端
-- **网状模式 (BT)** - 客户端接收流后自动中继给新客户端，减轻主机带宽压力
+### Network Modes
+- **Star Mode (P2P)** - Host sends stream directly to each client, ideal for small number of clients
+- **Mesh Mode (BT)** - Clients relay streams to new clients after receiving, reducing host bandwidth pressure
 
-### 界面特性
-- 🎨 **Material Design 3** - 基于 MDUI 3 的现代化界面
-- 🌓 **深色模式** - 支持深色/浅色主题切换
-- 📐 **可调整布局** - 支持拖拽分隔条调整预览区大小
-- ✨ **平滑动画** - 窗口展开/收起采用劈裂动画效果
+### Interface Features
+- 🎨 **Material Design 3** - Modern interface based on MDUI 3
+- 🌓 **Dark Mode** - Support for dark/light theme switching
+- 📐 **Adjustable Layout** - Draggable divider to adjust preview area size
+- ✨ **Smooth Animations** - Split animation effects for window expand/collapse
 
-## 技术栈
+## Tech Stack
 
-- **Electron** - 跨平台桌面应用框架
-- **WebRTC** - 实时音视频通信
-- **Socket.IO** - 信令服务器
-- **MDUI 3** - Material Design 组件库
+- **Electron** - Cross-platform desktop application framework
+- **WebRTC** - Real-time audio/video communication
+- **Socket.IO** - Signaling server
+- **MDUI 3** - Material Design component library
 
-## 项目结构
+## Development Guide
 
-```
-SyncSight/
-├── src/
-│   ├── main/                  # Electron 主进程
-│   │   ├── main.js           # 主进程入口
-│   │   ├── p2p-server.js     # 信令服务器
-│   │   ├── preload.js        # 主窗口预加载脚本
-│   │   └── preload-camera.js # 摄像头窗口预加载脚本
-│   ├── renderer/             # 渲染进程 (前端)
-│   │   ├── index.html        # 主界面
-│   │   ├── receiver.html     # 接收端界面
-│   │   ├── camera-preview.html # 摄像头预览窗口
-│   │   ├── assets/           # 静态资源 (CSS, JS)
-│   │   └── js/               # 前端 JavaScript 模块
-│   │       ├── state.js      # 全局状态管理
-│   │       ├── ui.js         # UI 交互逻辑
-│   │       ├── stream.js     # 媒体流管理
-│   │       └── signaling.js  # WebRTC 信令处理
-│   └── assets/               # 共享资源
-├── package.json
-├── README.md
-└── .gitignore
-```
-
-## 开发指南
-
-### 环境要求
+### Requirements
 - Node.js >= 18.x
 - npm >= 9.x
 
-### 安装依赖
+### Install Dependencies
 ```bash
 npm install
 ```
 
-### 启动开发
+### Start Development
 ```bash
 npm start
 ```
 
-### 构建应用
+### Build Application
 ```bash
 npm run build
 ```
 
-## 使用说明
+## Usage Instructions
 
-### 发送端 (Host)
-1. 选择要共享的屏幕或窗口
-2. 配置共享选项（系统声音、摄像头、麦克风）
-3. 选择转发模式（星型/网状）
-4. 点击"开始共享"
-5. 分享服务器地址给接收端
+### Sender (Host)
+1. Select the screen or window to share
+2. Configure sharing options (system audio, camera, microphone)
+3. Choose forwarding mode (Star/Mesh)
+4. Click "Start Sharing"
+5. Share the server address with receivers
 
-### 接收端 (Receiver)
-1. 打开接收端页面
-2. 输入发送端提供的服务器地址
-3. 自动连接并观看视频流
+### Receiver
+1. Open the receiver page
+2. Enter the server address provided by the sender
+3. Automatically connect and watch the video stream
 
-## 摄像头窗口
+## Camera Window
 
-- 开启摄像头后自动弹出独立预览窗口
-- 窗口始终置顶，支持拖拽移动
-- 调整大小时自动保持摄像头分辨率比例
-- 关闭窗口可通过摄像头开关或窗口关闭按钮
+- Independent preview window automatically pops up when camera is enabled
+- Window stays on top and supports drag-to-move
+- Automatically maintains camera resolution aspect ratio when resizing
+- Close window via camera toggle or window close button
 
-## 注意事项
+## Notes
 
-- 首次使用需要授予屏幕录制和摄像头/麦克风权限
-- 网状模式下，客户端数量越多，延迟可能越高
-- 共享中无法切换屏幕/窗口源，需停止共享后重新选择
+- Screen recording and camera/microphone permissions are required for first-time use
+- In mesh mode, latency may increase with more clients
+- Cannot switch screen/window source during sharing; stop sharing and reselect if needed
 
-## 许可证
+## License
 
 MIT License
