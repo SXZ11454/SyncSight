@@ -1,3 +1,7 @@
+## 🌍 Languages
+
+[English](README.md) | [简体中文](README_zh-CN.md)
+
 # SyncSight
 
 SyncSight is a real-time screen sharing application built with WebRTC and Electron, supporting both Star (P2P) and Mesh (BT) forwarding modes.
