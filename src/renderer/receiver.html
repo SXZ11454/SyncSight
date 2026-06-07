@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="receiver.title">SyncSight - 屏幕接收端</title>
+  <link rel="stylesheet" href="/assets/mdui.css" />
+  <link rel="stylesheet" href="/assets/icon.css" />
+  <script src="/assets/mdui.global.js"></script>
+  <script src="/js/i18n.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; cursor: default; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .material-icons { font-size: 24px; vertical-align: middle; }
+    
+    /* MDUI 风格状态提示 */
+    #status {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      background: rgba(30, 30, 30, 0.9);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    #status .material-icons { font-size: 18px; }
+    
+    /* MDUI 风格种子徽章 */
+    #seed-badge {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 100;
+      display: none;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    }
+    
+    /* MDUI 风格错误弹窗 */
+    #error-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+      padding: 24px 32px;
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 500;
+      display: none;
+      z-index: 1000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      max-width: 90%;
+      text-align: center;
+      backdrop-filter: blur(16px);
+    }
+    #error-modal .material-icons { font-size: 32px; margin-bottom: 12px; display: block; }
+    #error-modal.show {
+      display: block;
+      animation: modal-fade-in 0.3s ease-out;
+    }
+    @keyframes modal-fade-in {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+      to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+    #error-modal .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 24px;
+      padding: 4px 8px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    #error-modal .close-btn:hover {
+      opacity: 1;
+    }
+    #error-modal .error-message {
+      margin-top: 8px;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay playsinline controls></video>
+  <div id="status">
+    <i class="material-icons">wifi_find</i>
+    <span data-i18n="receiver.connecting">正在连接...</span>
+  </div>
+  <div id="seed-badge">
+    <i class="material-icons" style="font-size:14px;margin-right:4px;">hub</i>
+    <span data-i18n="receiver.seedBadge">SEED 中继</span>
+  </div>
+  <div id="error-modal">
+    <i class="material-icons">error</i>
+    <div id="error-title">错误</div>
+    <div class="error-message" id="error-message"></div>
+    <button class="close-btn" onclick="closeErrorModal()">
+      <i class="material-icons">close</i>
+    </button>
+  </div>
+
+  <script>
+    // Initialize i18n
+    I18n.init('zh-CN');
+    I18n.updateDOM();
+
+    console.log('[RECEIVER] Page loaded');
+    
+    if (typeof io === 'undefined') {
+      document.getElementById('status').textContent = I18n.t('receiver.socketNotLoaded');
+      document.getElementById('status').style.background = 'rgba(244, 67, 54, 0.9)';
+      throw new Error('Socket.IO not loaded');
+    }
+
+    const socket = io();
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    const seedBadge = document.getElementById('seed-badge');
+    
+    // 页面加载后 0.5 秒尝试播放（解锁音频自动播放）
+    setTimeout(() => {
+      video.play().catch(() => {});
+    }, 500);
+    
+    // 接收流相关
+    let peerConnection = null;       // 接收流的 PeerConnection
+    let remoteStream = null;         // 接收到的远程流
+    let currentRoomId = null;
+    let currentMode = 'star';        // 当前房间模式
+    let isFullscreen = false;
+    
+    // BT 模式 - 中继发送相关
+    let relayConnections = new Map(); // targetSocketId -> RTCPeerConnection (作为中继发送流给其他客户端)
+    let isSeed = false;              // 是否已注册为 seed
+
+    // 错误弹窗管理
+    function showError(message) {
+      const errorModal = document.getElementById('error-modal');
+      const errorMessage = document.getElementById('error-message');
+      errorMessage.textContent = message;
+      errorModal.classList.add('show');
+      if (isFullscreen) exitFullscreen();
+    }
+
+    function closeErrorModal() {
+      document.getElementById('error-modal').classList.remove('show');
+    }
+
+    // 全屏管理
+    function updateFullscreenState() {
+      isFullscreen = !!document.fullscreenElement;
+    }
+
+    function exitFullscreen() {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    video.addEventListener('fullscreenchange', updateFullscreenState);
+    video.addEventListener('webkitfullscreenchange', updateFullscreenState);
+
+    video.addEventListener('dblclick', () => {
+      if (!document.fullscreenElement) {
+        video.requestFullscreen().catch(() => {});
+      } else {
+        exitFullscreen();
+      }
+    });
+
+    // 点击画面播放（解决自动播放限制）
+    video.addEventListener('click', () => {
+      if (video.paused) {
+        video.play().catch(() => {});
+      }
+    });
+
+    // STUN 服务器配置
+    const rtcConfig = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+      ]
+    };
+
+    // ============ 连接服务器并加入房间 ============
+    socket.on('connect', () => {
+      console.log('[RECEIVER] Socket connected, ID:', socket.id);
+      status.textContent = I18n.t('receiver.connected');
+      
+      socket.emit('JOIN_ANY_ROOM', { 
+        username: '接收端-' + Math.random().toString(36).substr(2, 5)
+      }, (response) => {
+        console.log('[RECEIVER] JOIN_ANY_ROOM response:', response);
+        if (response.success) {
+          currentRoomId = response.roomId;
+          currentMode = response.mode || 'star';
+          console.log('[RECEIVER] Joined room:', currentRoomId, 'Mode:', currentMode);
+          
+          if (currentMode === 'bt' && response.relayFrom) {
+            // BT 模式：向 seed 发送加入请求（而不是向房主）
+            console.log('[RECEIVER] BT mode: Sending JOIN_REQUEST to seed:', response.relayFrom);
+            status.textContent = I18n.t('receiver.btRelaying');
+            socket.emit('SIGNALING', {
+              roomId: currentRoomId,
+              targetId: response.relayFrom,
+              type: 'JOIN_REQUEST',
+              data: { socketId: socket.id }
+            });
+          } else {
+            // 星型模式或 BT 模式无 seed：直接向房主请求
+            console.log('[RECEIVER] Sending JOIN_REQUEST to host:', response.hostId);
+            status.textContent = I18n.t('receiver.waitingStream');
+            socket.emit('SIGNALING', {
+              roomId: currentRoomId,
+              targetId: response.hostId,
+              type: 'JOIN_REQUEST',
+              data: { socketId: socket.id }
+            });
+          }
+        } else {
+          console.error('[RECEIVER] Failed to join room:', response.error);
+          showError(I18n.t('receiver.joinFailed', { error: response.error || I18n.t('receiver.hostLeft') }));
+        }
+      });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[RECEIVER] Socket disconnected');
+      status.textContent = I18n.t('receiver.disconnected');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[RECEIVER] Socket connection error:', err.message);
+      showError(I18n.t('receiver.connectError', { error: err.message }));
+    });
+
+    // ============ 信令消息处理 ============
+    socket.on('SIGNALING', async (message) => {
+      console.log('[RECEIVER] SIGNALING:', message.type, 'from:', message.fromId);
+      
+      if (message.type === 'OFFER') {
+        await handleOffer(message);
+      } else if (message.type === 'ANSWER') {
+        await handleAnswer(message);
+      } else if (message.type === 'ICE_CANDIDATE') {
+        await handleIceCandidate(message);
+      } else if (message.type === 'JOIN_REQUEST') {
+        // BT 模式：其他客户端请求从本客户端获取流
+        await handleRelayRequest(message);
+      }
+    });
+
+    socket.on('ERROR', (data) => {
+      console.error('[RECEIVER] ERROR:', data.message);
+      showError(data.message);
+    });
+
+    socket.on('HOST_LEFT', () => {
+      console.log('[RECEIVER] Host left');
+      showError(I18n.t('receiver.hostLeft'));
+      cleanupAll();
+    });
+
+    socket.on('MODE_CHANGED', (data) => {
+      console.log('[RECEIVER] Mode changed to:', data.mode);
+      currentMode = data.mode;
+      if (data.mode === 'star') {
+        // 退出 seed 模式
+        isSeed = false;
+        seedBadge.style.display = 'none';
+        // 关闭所有中继连接
+        relayConnections.forEach(pc => pc.close());
+        relayConnections.clear();
+      }
+    });
+
+    // ============ 接收流：处理 OFFER ============
+    async function handleOffer(message) {
+      try {
+        const offer = message.data;
+        const fromId = message.fromId;
+        console.log('[RECEIVER] Handling OFFER from:', fromId);
+        
+        // 清理旧的接收连接
+        if (peerConnection) {
+          console.log('[RECEIVER] Closing old peer connection');
+          peerConnection.close();
+          peerConnection = null;
+        }
+        
+        // 清理旧的视频源
+        if (video.srcObject) {
+          video.srcObject = null;
+        }
+        remoteStream = null;
+        
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        peerConnection.ontrack = (event) => {
+          console.log('[RECEIVER] Received track:', event.track.kind, 'streams:', event.streams.length);
+          
+          // 使用 event.streams[0] 作为远程流
+          if (event.streams && event.streams[0]) {
+            remoteStream = event.streams[0];
+          } else {
+            // 如果没有 stream，手动创建
+            if (!remoteStream) {
+              remoteStream = new MediaStream();
+            }
+            remoteStream.addTrack(event.track);
+          }
+          
+          // 始终更新 video.srcObject
+          if (video.srcObject !== remoteStream) {
+            video.srcObject = remoteStream;
+          }
+          
+          if (event.track.kind === 'video') {
+            status.textContent = I18n.t('receiver.playing');
+            
+            // 尝试播放（带声音）
+            video.play().then(() => {
+              console.log('[RECEIVER] Playback started with audio');
+            }).catch(err => {
+              console.warn('[RECEIVER] Auto-play failed, user interaction needed:', err);
+              status.textContent = I18n.t('receiver.clickToPlay');
+            });
+
+            // BT 模式：收到流后注册为 seed
+            if (currentMode === 'bt' && !isSeed) {
+              registerAsSeed();
+            }
+          }
+        };
+
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('SIGNALING', {
+              roomId: currentRoomId,
+              targetId: fromId,
+              type: 'ICE_CANDIDATE',
+              data: {
+                candidate: event.candidate,
+                fromId: socket.id
+              }
+            });
+          }
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+          console.log('[RECEIVER] Connection state:', peerConnection.connectionState);
+          
+          if (peerConnection.connectionState === 'connected') {
+            status.textContent = I18n.t('receiver.connectedStatus');
+          } else if (peerConnection.connectionState === 'failed') {
+            status.textContent = I18n.t('receiver.connectionFailed');
+            showError(I18n.t('receiver.connectionFailed'));
+            if (peerConnection) { peerConnection.close(); peerConnection = null; }
+          } else if (peerConnection.connectionState === 'disconnected') {
+            status.textContent = I18n.t('receiver.senderDisconnected');
+            showError(I18n.t('receiver.senderDisconnected'));
+            if (peerConnection) { peerConnection.close(); peerConnection = null; }
+          } else if (peerConnection.connectionState === 'closed') {
+            if (peerConnection) { peerConnection.close(); peerConnection = null; }
+          }
+        };
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        socket.emit('SIGNALING', {
+          roomId: currentRoomId,
+          targetId: fromId,
+          type: 'ANSWER',
+          data: {
+            type: answer.type,
+            sdp: answer.sdp,
+            fromId: socket.id
+          }
+        });
+        console.log('[RECEIVER] ANSWER sent to:', fromId);
+        
+      } catch (err) {
+        console.error('[RECEIVER] Error handling offer:', err);
+        showError(I18n.t('receiver.streamError', { error: err.message }));
+        if (peerConnection) { peerConnection.close(); peerConnection = null; }
+      }
+    }
+
+    // ============ BT 模式：注册为 Seed ============
+    function registerAsSeed() {
+      if (isSeed || !remoteStream) return;
+      
+      isSeed = true;
+      seedBadge.style.display = 'block';
+      
+      socket.emit('REGISTER_SEED', { roomId: currentRoomId });
+      console.log('[RECEIVER] Registered as seed');
+    }
+
+    // ============ BT 模式：处理中继请求 ============
+    async function handleRelayRequest(message) {
+      if (currentMode !== 'bt') return;
+      if (!remoteStream) {
+        console.warn('[RECEIVER] No stream to relay');
+        return;
+      }
+
+      const targetId = message.fromId;
+      console.log('[RECEIVER] BT Relay request from:', targetId);
+
+      // 如果已有中继连接，先关闭
+      if (relayConnections.has(targetId)) {
+        const oldPc = relayConnections.get(targetId);
+        oldPc.close();
+        relayConnections.delete(targetId);
+      }
+
+      try {
+        const pc = new RTCPeerConnection(rtcConfig);
+        
+        // 将接收到的流添加到中继连接
+        remoteStream.getTracks().forEach(track => {
+          pc.addTrack(track, remoteStream);
+          console.log('[RECEIVER] Added track to relay:', track.kind);
+        });
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('SIGNALING', {
+              roomId: currentRoomId,
+              targetId: targetId,
+              type: 'ICE_CANDIDATE',
+              data: {
+                candidate: event.candidate,
+                fromId: socket.id
+              }
+            });
+          }
+        };
+
+        pc.onconnectionstatechange = () => {
+          console.log('[RECEIVER] Relay connection state:', pc.connectionState, 'to:', targetId);
+          if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            pc.close();
+            relayConnections.delete(targetId);
+          }
+        };
+
+        // 创建 Offer 并发送
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        socket.emit('SIGNALING', {
+          roomId: currentRoomId,
+          targetId: targetId,
+          type: 'OFFER',
+          data: {
+            type: offer.type,
+            sdp: offer.sdp,
+            fromId: socket.id
+          }
+        });
+
+        relayConnections.set(targetId, pc);
+        console.log('[RECEIVER] Relay offer sent to:', targetId, 'Total relays:', relayConnections.size);
+        
+      } catch (err) {
+        console.error('[RECEIVER] Error creating relay:', err);
+      }
+    }
+
+    // ============ 处理 ANSWER（中继连接的应答） ============
+    async function handleAnswer(message) {
+      const fromId = message.fromId;
+      const answer = message.data;
+      
+      // 检查是否是中继连接的应答
+      const relayPc = relayConnections.get(fromId);
+      if (relayPc) {
+        try {
+          if (relayPc.signalingState === 'have-local-offer') {
+            await relayPc.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log('[RECEIVER] Relay answer set for:', fromId);
+          }
+        } catch (err) {
+          console.error('[RECEIVER] Error setting relay answer:', err);
+        }
+        return;
+      }
+      
+      // 否则是接收连接的应答
+      if (peerConnection) {
+        try {
+          if (peerConnection.signalingState === 'have-local-offer') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log('[RECEIVER] Remote description set');
+          }
+        } catch (err) {
+          console.error('[RECEIVER] Error setting remote description:', err);
+        }
+      }
+    }
+
+    // ============ 处理 ICE Candidate ============
+    async function handleIceCandidate(message) {
+      const fromId = message.fromId;
+      const candidateData = message.data;
+      
+      if (!candidateData || !candidateData.candidate) return;
+
+      // 检查是否是中继连接的 ICE
+      const relayPc = relayConnections.get(fromId);
+      if (relayPc && relayPc.remoteDescription) {
+        try {
+          await relayPc.addIceCandidate(new RTCIceCandidate(candidateData.candidate));
+          console.log('[RECEIVER] Relay ICE candidate added for:', fromId);
+        } catch (err) {
+          console.warn('[RECEIVER] Relay ICE candidate error:', err.message);
+        }
+        return;
+      }
+      
+      // 接收连接的 ICE
+      if (peerConnection && peerConnection.remoteDescription) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidateData.candidate));
+          console.log('[RECEIVER] ICE candidate added');
+        } catch (err) {
+          console.warn('[RECEIVER] ICE candidate error:', err.message);
+        }
+      }
+    }
+
+    // ============ 清理 ============
+    function cleanupAll() {
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      relayConnections.forEach(pc => pc.close());
+      relayConnections.clear();
+      isSeed = false;
+      seedBadge.style.display = 'none';
+      video.srcObject = null;
+      remoteStream = null;
+    }
+  </script>
+</body>
+</html>
