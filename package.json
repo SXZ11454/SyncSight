@@ -18,7 +18,12 @@
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "SyncSight-${version}-setup.${ext}"
+      "artifactName": "SyncSight-${version}-setup.${ext}",
+      "publish": {
+        "provider": "github",
+        "owner": "SXZ11454",
+        "repo": "SyncSight"
+      }
     },
     "nsis": {
       "oneClick": false,

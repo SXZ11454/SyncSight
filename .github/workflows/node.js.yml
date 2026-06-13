@@ -1,18 +1,15 @@
-name: Build SyncSight Electron App
+name: Build & Release SyncSight
 
 on:
   push:
-    branches: [ main, master ]
     tags:
       - 'v*'
-  pull_request:
-    branches: [ main, master ]
 
 permissions:
   contents: write
 
 jobs:
-  build-windows:
+  build-and-release:
     runs-on: windows-latest
 
     steps:
@@ -27,24 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Windows NSIS installer
-        run: npm run dist
+      - name: Build & Publish NSIS installer to GitHub Release
+        run: npm run dist -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: SyncSight-Windows-x64
-          path: dist/*.exe
-          retention-days: 30
-
-      - name: Release (only on tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.exe
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
