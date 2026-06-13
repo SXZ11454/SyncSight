@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="cameraWindow.title">SyncSight - 摄像头预览</title>
+  <link rel="stylesheet" href="../assets/mdui.css" />
+  <link rel="stylesheet" href="../assets/icon.css" />
+  <script src="../assets/mdui.global.js"></script>
+  <script src="../js/i18n.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; cursor: default; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .material-icons { font-size: 24px; vertical-align: middle; }
+    
+    /* MDUI 风格控制栏 */
+    .controls {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 12px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+      -webkit-app-region: drag;
+      backdrop-filter: blur(8px);
+    }
+    body:hover .controls { opacity: 1; }
+    .controls .title {
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .controls .title .material-icons { font-size: 18px; }
+    .controls button {
+      -webkit-app-region: no-drag;
+      background: transparent;
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .controls button:hover { background: rgba(255,255,255,0.15); }
+    
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #999;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .loading .material-icons { font-size: 20px; animation: spin 1s linear infinite; }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <video id="cameraVideo" autoplay playsinline muted></video>
+  <div class="loading" id="loading">
+    <i class="material-icons">progress_activity</i>
+    <span data-i18n="cameraWindow.connecting">正在连接摄像头...</span>
+  </div>
+  <div class="controls">
+    <span class="title">
+      <i class="material-icons">photo_camera</i>
+      <span data-i18n="cameraWindow.title">摄像头预览</span>
+    </span>
+    <button id="closeBtn" data-i18n-title="cameraWindow.close" data-i18n="cameraWindow.close" title="关闭">
+      <i class="material-icons">close</i>
+    </button>
+  </div>
+  <script>
+    // Initialize i18n
+    I18n.init('zh-CN');
+    I18n.updateDOM();
+
+    const video = document.getElementById('cameraVideo');
+    const loading = document.getElementById('loading');
+    
+    // 接收摄像头设备 ID 和分辨率
+    window.electronAPI.onCameraStream(async (data) => {
+      console.log('[CAMERA-WINDOW] Starting camera:', data);
+      try {
+        const constraints = {
+          video: data.deviceId ? { deviceId: { exact: data.deviceId } } : {}
+        };
+        // 如果指定了分辨率
+        if (data.width && data.height) {
+          constraints.video.width = { ideal: data.width };
+          constraints.video.height = { ideal: data.height };
+        }
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        loading.style.display = 'none';
+        
+        // 获取实际分辨率并通知主进程宽高比
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        const ratio = settings.width / settings.height;
+        console.log('[CAMERA-WINDOW] Resolution:', settings.width, 'x', settings.height, 'ratio:', ratio);
+        window.electronAPI.setAspectRatio(ratio);
+        
+        console.log('[CAMERA-WINDOW] Camera started');
+      } catch (err) {
+        console.error('[CAMERA-WINDOW] Camera error:', err);
+        loading.textContent = I18n.t('cameraWindow.startFailed');
+      }
+    });
+    
+    document.getElementById('closeBtn').addEventListener('click', () => {
+      window.electronAPI.closeCameraWindow();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="app.title">SyncSight - 屏幕共享发送端</title>
+  <link rel="stylesheet" href="../assets/mdui.css" />
+  <link rel="stylesheet" href="../assets/icon.css" />
+  <script src="../assets/mdui.global.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Roboto';
+      src: url('../assets/Roboto-Regular.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: 'Noto Sans SC';
+      src: url('../assets/NotoSansSC-Regular.otf') format('opentype');
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    :root {
+      --md-sys-color-primary: #6750a4;
+      --md-sys-color-on-primary: #fff;
+      --md-sys-color-primary-container: #eaddff;
+      --md-sys-color-on-primary-container: #21005d;
+      --md-sys-color-secondary: #625b71;
+      --md-sys-color-surface: #fef7ff;
+      --md-sys-color-surface-container: #f3edf7;
+      --md-sys-color-surface-container-low: #f7f2fa;
+      --md-sys-color-surface-container-high: #ece6f0;
+      --md-sys-color-on-surface: #1d1b20;
+      --md-sys-color-on-surface-variant: #49454f;
+      --md-sys-color-outline: #79747e;
+      --md-sys-color-outline-variant: #cac4d0;
+      --md-sys-color-error: #b3261e;
+      --md-sys-color-success: #386a20;
+    }
+
+    * { box-sizing: border-box; cursor: default; font-family: 'Roboto', 'Noto Sans SC', sans-serif; }
+
+    body {
+      margin: 0;
+      font-family: 'Roboto', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      user-select: none;
+      -webkit-user-select: none;
+      position: relative;
+    }
+
+    .material-icons { font-size: 24px; }
+
+    .main-layout {
+      display: flex;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 左栏 - 视频预览 */
+    .left-panel {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      background: #1c1b1f;
+      min-width: 400px;
+      overflow: hidden;
+      opacity: 0;
+    }
+
+    /* 分隔条（位于右栏左侧） */
+    .resizer {
+      width: 12px;
+      cursor: col-resize;
+      background: transparent;
+      flex-shrink: 0;
+      position: relative;
+      display: none;
+      order: -1;
+      align-items: center;
+      justify-content: center;
+    }
+    .resizer mdui-divider {
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #2b2930;
+      color: #e6e0e9;
+      font-size: 13px;
+    }
+
+    .preview-header .title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .preview-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background: #1c1b1f;
+    }
+
+    .preview-area video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .preview-empty {
+      text-align: center;
+      color: #49454f;
+    }
+    .preview-empty .material-icons { font-size: 64px; opacity: 0.3; }
+    .preview-empty p { margin-top: 12px; font-size: 14px; }
+
+    /* 右栏 - 控制面板（含分隔条） */
+    .right-panel {
+      flex: none;
+      width: 440px;
+      min-width: 440px;
+      display: flex;
+      flex-direction: row;
+      background: var(--md-sys-color-surface);
+      overflow: hidden;
+      position: relative;
+    }
+    .right-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .right-content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-top: 4px;
+    }
+
+    /* 通用 section */
+    .section {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--md-sys-color-primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .section-title .material-icons {
+      font-size: 14px;
+    }
+
+    /* 源选择 */
+    .source-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 2px 0;
+    }
+
+    .source-item {
+      background: var(--md-sys-color-surface-container-low);
+      border: 1.5px solid transparent;
+      border-radius: 6px;
+      padding: 6px;
+      transition: all 0.15s;
+      width: 130px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .source-item:hover {
+      border-color: var(--md-sys-color-outline-variant);
+    }
+    .source-item.selected {
+      border-color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+    }
+
+    .source-item.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .source-item img {
+      width: 100%;
+      height: 70px;
+      object-fit: contain;
+      background: #1c1b1f;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .source-item .name-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 100%;
+    }
+    .source-item mdui-radio { flex-shrink: 0; }
+    .source-item .name {
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface);
+      line-height: 1.3;
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 共享选项 */
+    .options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+
+    .switch-label {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface);
+      flex: 1;
+    }
+    .option-row mdui-checkbox { flex: 1; }
+    .option-row .option-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .mic-select-section { margin-top: 8px; }
+
+    /* 流状态标签 */
+    .stream-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-success);
+      font-weight: 500;
+    }
+    .stream-status.off {
+      background: var(--md-sys-color-surface-container);
+      color: var(--md-sys-color-outline);
+    }
+    .stream-status .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--md-sys-color-success);
+    }
+    .stream-status.off .dot { background: var(--md-sys-color-outline); }
+
+    /* 模式描述 */
+    .mode-desc {
+      font-size: 11px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    /* 服务器状态 */
+    .server-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .port-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .port-row mdui-text-field { flex: 1; }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .info-row .label {
+      color: var(--md-sys-color-on-surface-variant);
+      min-width: 40px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .info-row .value {
+      flex: 1;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--md-sys-color-outline-variant);
+      transition: all 0.3s;
+    }
+    .status-dot.active {
+      background: var(--md-sys-color-success);
+      box-shadow: 0 0 6px rgba(56,106,32,0.4);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+    .status-text {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .status-text.active { color: var(--md-sys-color-success); }
+
+    /* 按钮 */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-group mdui-button { flex: 1; }
+
+    /* 日志 */
+    .log-section {
+      display: flex;
+      flex-direction: column;
+      height: 200px;
+      min-height: 60px;
+      max-height: 80vh;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .log-resize-handle {
+      height: 8px;
+      cursor: ns-resize;
+      background: transparent;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .log-resize-handle::after {
+      content: '';
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 3px;
+      border-radius: 2px;
+      background: var(--md-sys-color-outline-variant);
+      transition: background 0.15s ease;
+    }
+    .log-resize-handle:hover::after,
+    .log-resize-handle.active::after {
+      background: var(--md-sys-color-primary);
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      flex-shrink: 0;
+    }
+    .log-container {
+      background: #1c1b1f;
+      border-radius: 4px;
+      padding: 8px 10px;
+      overflow-y: auto;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 10px;
+      line-height: 1.4;
+      color: #e6e0e9;
+      flex: 1;
+      min-height: 30px;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .log-entry {
+      padding: 2px 0;
+      border-bottom: 1px solid #2b2930;
+      display: flex;
+      gap: 6px;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: #938f99; min-width: 62px; }
+    .log-level-info { color: #a8c7fa; }
+    .log-level-success { color: #a8dab5; }
+    .log-level-error { color: #f9b9b4; }
+    .log-level-warn { color: #fdd884; }
+    .log-message { color: #e6e0e9; word-break: break-all; }
+
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+    .empty-state mdui-circular-progress {
+      --mdui-color-primary: var(--md-sys-color-primary);
+    }
+
+  </style>
+</head>
+<body class="mdui-theme-light">
+  <div class="main-layout">
+    <!-- 左栏 - 视频预览 -->
+    <div class="left-panel">
+      <div class="preview-header">
+        <div class="title">
+          <i class="material-icons" style="font-size:16px;">preview</i>
+          <span data-i18n="preview.title">预览</span>
+        </div>
+        <div id="previewInfo" style="font-size:11px;color:#aaa;" data-i18n="preview.notShared">未共享</div>
+      </div>
+      <div class="preview-area">
+        <div id="previewEmpty" class="preview-empty">
+          <i class="material-icons">monitor</i>
+          <p data-i18n="preview.loading">正在加载预览...</p>
+        </div>
+        <video id="previewVideo" autoplay playsinline muted style="display:none;"></video>
+      </div>
+    </div>
+
+    <!-- 右栏 - 控制面板（含分隔条） -->
+    <div class="right-panel">
+      <!-- 可拖拽分隔条 -->
+      <div class="resizer" id="resizer"><mdui-divider vertical></mdui-divider></div>
+      <!-- 展开/折叠按钮 - FAB 浮动在右栏左下角 -->
+      <mdui-fab id="togglePreviewBtn" icon="chevron_right" size="small" variant="surface" data-i18n-title="action.expandPreview" title="展开预览" style="position:absolute;left:18px;bottom:12px;z-index:100;"></mdui-fab>
+      <!-- 右栏内容区 -->
+      <div class="right-inner">
+      <div class="right-content">
+      <!-- 共享源选择 -->
+      <div class="section">
+        <div class="section-title"><i class="material-icons">share</i> <span data-i18n="source.title">共享源</span></div>
+        <mdui-tabs id="sourceTabs" value="screen" variant="primary" style="margin-bottom:12px;">
+          <mdui-tab value="screen" icon="monitor" data-i18n="source.tabScreen">屏幕</mdui-tab>
+          <mdui-tab value="window" icon="window" data-i18n="source.tabWindow">窗口</mdui-tab>
+          <mdui-tab-panel slot="panel" value="screen">
+            <div class="source-wrapper" style="position:relative;">
+              <div id="screenList" class="source-grid">
+                <div class="empty-state"><mdui-circular-progress></mdui-circular-progress><p style="margin-top:8px;font-size:12px;" data-i18n="source.loading">加载中...</p></div>
+              </div>
+              <mdui-button-icon id="refreshBtn" icon="refresh" style="position:absolute;top:4px;right:4px;"></mdui-button-icon>
+            </div>
+          </mdui-tab-panel>
+          <mdui-tab-panel slot="panel" value="window">
+            <div class="source-wrapper" style="position:relative;">
+              <div id="windowList" class="source-grid">
+                <div class="empty-state"><mdui-circular-progress></mdui-circular-progress><p style="margin-top:8px;font-size:12px;" data-i18n="source.loading">加载中...</p></div>
+              </div>
+            </div>
+          </mdui-tab-panel>
+        </mdui-tabs>
+      </div>
+
+      <!-- 共享选项 -->
+      <div class="section">
+        <div class="section-title"><i class="material-icons">settings</i> <span data-i18n="options.title">共享选项</span></div>
+        <div class="options-list">
+          <div class="option-row">
+            <mdui-switch id="shareVideo" checked></mdui-switch>
+            <span class="switch-label" data-i18n="options.shareVideo">共享画面</span>
+            <div id="videoStatus" class="stream-status off"><span class="dot"></span><span data-i18n="options.notStarted">未启动</span></div>
+          </div>
+          <div class="option-row">
+            <mdui-switch id="shareAudio" checked></mdui-switch>
+            <span class="switch-label" data-i18n="options.shareAudio">系统声音</span>
+            <div id="audioStatus" class="stream-status off"><span class="dot"></span><span data-i18n="options.notStarted">未启动</span></div>
+          </div>
+          <div class="option-row">
+            <mdui-switch id="shareCamera"></mdui-switch>
+            <span class="switch-label" data-i18n="options.shareCamera">摄像头</span>
+            <div class="option-actions">
+              <div id="cameraStatus" class="stream-status off"><span class="dot"></span><span data-i18n="options.notStarted">未启动</span></div>
+            </div>
+          </div>
+          <div class="option-row">
+            <mdui-switch id="shareMic"></mdui-switch>
+            <span class="switch-label" data-i18n="options.shareMic">麦克风</span>
+            <div id="micStatus" class="stream-status off"><span class="dot"></span><span data-i18n="options.notStarted">未启动</span></div>
+          </div>
+        </div>
+        <div class="mic-select-section" id="micSelectSection" style="display:none;margin-top:8px;">
+          <mdui-select id="micSelect" variant="outlined"></mdui-select>
+        </div>
+        <div id="cameraSelectSection" style="display:none;margin-top:8px;">
+          <mdui-select id="cameraSelect" variant="outlined"></mdui-select>
+          <mdui-select id="cameraResolution" variant="outlined" style="margin-top:8px;">
+            <mdui-menu-item value="320x240">320×240</mdui-menu-item>
+            <mdui-menu-item value="640x480">640×480 (VGA)</mdui-menu-item>
+            <mdui-menu-item value="1280x720" selected>1280×720 (HD)</mdui-menu-item>
+            <mdui-menu-item value="1920x1080">1920×1080 (FHD)</mdui-menu-item>
+          </mdui-select>
+        </div>
+        <mdui-select id="frameRateSelect" variant="outlined" value="30" style="width:140px;">
+          <mdui-menu-item value="15">15 fps</mdui-menu-item>
+          <mdui-menu-item value="30" selected>30 fps</mdui-menu-item>
+          <mdui-menu-item value="60">60 fps</mdui-menu-item>
+        </mdui-select>
+      </div>
+
+      <!-- 转发模式 -->
+      <div class="section">
+        <div class="section-title"><i class="material-icons">hub</i> <span data-i18n="mode.title">转发模式</span></div>
+        <mdui-segmented-button-group id="modeGroup" selects="single" value="bt" full-width>
+          <mdui-segmented-button value="star" icon="star_outline" data-i18n="mode.star">星型</mdui-segmented-button>
+          <mdui-segmented-button value="bt" icon="hub" data-i18n="mode.bt">网状</mdui-segmented-button>
+        </mdui-segmented-button-group>
+        <div class="mode-desc" id="modeDesc" data-i18n="mode.btDesc">网状：客户端接收流后自动中继给新客户端，减轻主机带宽压力</div>
+      </div>
+
+      <!-- 个性化 -->
+      <div class="section">
+        <div class="section-title"><i class="material-icons">palette</i> <span data-i18n="personalize.title">个性化</span></div>
+        <div class="option-row">
+          <span style="font-size:13px;" data-i18n="personalize.darkMode">深色模式</span>
+          <mdui-switch id="darkModeSwitch"></mdui-switch>
+        </div>
+        <div class="option-row" style="margin-top:8px;">
+          <span style="font-size:13px;" data-i18n="personalize.language">语言</span>
+          <mdui-select id="langSelect" variant="outlined" value="zh-CN" style="width:120px;">
+            <mdui-menu-item value="zh-CN">中文</mdui-menu-item>
+            <mdui-menu-item value="en-US">English</mdui-menu-item>
+          </mdui-select>
+        </div>
+      </div>
+
+      <!-- 服务器 -->
+      <div class="section">
+        <div class="section-title"><i class="material-icons">cloud_done</i> <span data-i18n="server.title">服务器</span></div>
+        <div class="server-info">
+          <div class="port-row">
+            <span class="label" data-i18n="server.port">端口</span>
+            <mdui-text-field id="portInput" type="number" value="3000" min="1024" max="65535" variant="outlined" style="max-width:120px;"></mdui-text-field>
+          </div>
+          <div class="info-row" id="addressRow" style="display:none;">
+            <span class="label" data-i18n="server.address">地址</span>
+            <span id="serverUrl" class="value" style="color:#333;"></span>
+            <mdui-button-icon id="copyUrlBtn" icon="content_copy" style="flex-shrink:0;"></mdui-button-icon>
+          </div>
+          <div class="info-row" id="roomIdRow" style="display:none;">
+            <span class="label" data-i18n="server.room">房间</span>
+            <span id="roomId" class="value" style="color:#333;"></span>
+          </div>
+          <div class="info-row">
+            <span class="label" data-i18n="server.status">状态</span>
+            <div class="status-indicator">
+              <div id="statusDot" class="status-dot"></div>
+              <span id="statusText" class="status-text" data-i18n="server.statusNotRunning">未运行</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="section">
+        <div class="btn-group">
+          <mdui-button id="startBtn" variant="filled" disabled icon="play_arrow" data-i18n="action.start">开始共享</mdui-button>
+          <mdui-button id="stopBtn" variant="tonal" disabled color="error" icon="stop" data-i18n="action.stop">停止共享</mdui-button>
+        </div>
+      </div>
+      </div>
+
+      <!-- 日志 -->
+      <div class="section log-section" id="logSection">
+        <div class="log-header">
+          <div class="section-title" style="margin-bottom:0;"><i class="material-icons">description</i> <span data-i18n="log.title">日志</span></div>
+          <mdui-select id="logLevelSelect" variant="outlined" value="info" style="width:100px;--mdui-shape-corner-extra-small:8px;">
+            <mdui-menu-item value="error" data-i18n="log.levelError">ERROR</mdui-menu-item>
+            <mdui-menu-item value="warn" data-i18n="log.levelWarn">WARN</mdui-menu-item>
+            <mdui-menu-item value="info" data-i18n="log.levelInfo">INFO</mdui-menu-item>
+            <mdui-menu-item value="debug" data-i18n="log.levelDebug">DEBUG</mdui-menu-item>
+          </mdui-select>
+        </div>
+        <div class="log-resize-handle" id="logResizeHandle"></div>
+        <div id="logContainer" class="log-container">
+          <div class="log-entry" data-level="info"><span class="log-time" data-i18n="log.waiting">等待启动...</span></div>
+        </div>
+      </div>
+      </div><!-- /right-inner -->
+    </div><!-- /right-panel -->
+  </div><!-- /main-layout -->
+
+  <script src="js/i18n.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/stream.js"></script>
+  <script src="js/signaling.js"></script>
+  <script>
+    // Initialize i18n before app logic
+    const lang = I18n.init('zh-CN');
+    document.getElementById('langSelect').value = lang;
+    // Load saved config (language, dark mode, port, mode, etc.)
+    loadConfig();
+  </script>
+</body>
+</html>

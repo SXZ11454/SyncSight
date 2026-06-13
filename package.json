@@ -1,0 +1,30 @@
+{
+  "name": "syncsight",
+  "version": "1.0.0",
+  "description": "基于 Electron 的屏幕共享应用",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "author": "SyncSight",
+  "license": "MIT",
+  "build": {
+    "appId": "com.syncsight.app",
+    "files": [
+      "src/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^41.4.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "express": "^5.2.1",
+    "router": "^2.2.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  }
+}
