@@ -12,9 +12,24 @@
   "license": "MIT",
   "build": {
     "appId": "com.syncsight.app",
+    "productName": "SyncSight",
     "files": [
       "src/**/*"
-    ]
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "SyncSight-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerLanguages": ["zh-CN", "en-US"],
+      "language": "2052",
+      "unicode": true,
+      "installerIcon": "src/assets/syncsight.png",
+      "uninstallerIcon": "src/assets/syncsight.png"
+    }
   },
   "devDependencies": {
     "electron": "^41.4.0",
