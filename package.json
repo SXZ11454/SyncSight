@@ -26,9 +26,7 @@
       "allowElevation": true,
       "installerLanguages": ["zh-CN", "en-US"],
       "language": "2052",
-      "unicode": true,
-      "installerIcon": "src/assets/syncsight.png",
-      "uninstallerIcon": "src/assets/syncsight.png"
+      "unicode": true
     }
   },
   "devDependencies": {
