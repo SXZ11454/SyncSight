@@ -344,6 +344,9 @@ ipcMain.handle('open-camera-window', async (event, cameraId) => {
     resizable: true,
     skipTaskbar: true,
     title: 'SyncSight - 摄像头',
+    // 定位到屏幕右上角
+    x: screen.getPrimaryDisplay().workAreaSize.width - 320 - 16,
+    y: screen.getPrimaryDisplay().workArea.y + 16,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -410,6 +413,15 @@ ipcMain.on('send-camera-stream-to-window', (event, data) => {
 });
 
 // ============ 共享浮动工具栏窗口 ============
+// 工具栏标签翻译（主进程侧，用于初始化工具栏语言）
+const TOOLBAR_LABELS = {
+  'zh-CN': { tbMic: '麦克风', tbVideo: '共享画面', tbCamera: '摄像头', tbAudio: '系统声音', tbStop: '停止共享' },
+  'en-US': { tbMic: 'Microphone', tbVideo: 'Screen Share', tbCamera: 'Camera', tbAudio: 'System Audio', tbStop: 'Stop Sharing' }
+};
+function getToolbarLabels(lang) {
+  return TOOLBAR_LABELS[lang] || TOOLBAR_LABELS['zh-CN'];
+}
+
 function createToolbarWindow() {
   if (toolbarWindow && !toolbarWindow.isDestroyed()) {
     toolbarWindow.focus();
@@ -422,7 +434,8 @@ function createToolbarWindow() {
 
   // 窗口尺寸（留边距）
   const margin = 24;
-  const tbWidth = 428;
+  const lang = Config.get('language') || 'zh-CN';
+  const tbWidth = lang === 'en-US' ? 452 : 428;
   const tbHeight = 88;
 
   toolbarWindow = new BrowserWindow({
@@ -446,8 +459,22 @@ function createToolbarWindow() {
 
   toolbarWindow.loadFile(path.join(__dirname, '../renderer/toolbar.html'));
 
+  // 窗口加载完成后，同步初始语言
+  toolbarWindow.webContents.on('did-finish-load', () => {
+    const lang = Config.get('language') || 'zh-CN';
+    // 从内嵌翻译数据获取工具栏标签
+    const labels = getToolbarLabels(lang);
+    if (labels) {
+      toolbarWindow.webContents.send('toolbar-set-lang', labels);
+    }
+  });
+
   toolbarWindow.on('closed', () => {
     toolbarWindow = null;
+    // 通知渲染器工具栏已关闭，同步开关状态
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('toolbar-closed-from-main');
+    }
   });
 }
 
@@ -496,6 +523,13 @@ ipcMain.on('toolbar-sync-state', (_event, state) => {
 ipcMain.on('set-toolbar-lang', (_event, labels) => {
   if (toolbarWindow && !toolbarWindow.isDestroyed()) {
     toolbarWindow.webContents.send('toolbar-set-lang', labels);
+  }
+});
+
+// 工具栏窗口自适应内容大小
+ipcMain.on('toolbar-resize', (_event, { width, height }) => {
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    toolbarWindow.setSize(width, height);
   }
 });
 

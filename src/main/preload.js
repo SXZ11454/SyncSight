@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onToolbarAction: (callback) => {
     ipcRenderer.on('toolbar-action-from-main', (_event, action) => callback(action));
   },
+  onToolbarClosed: (callback) => {
+    ipcRenderer.on('toolbar-closed-from-main', () => callback());
+  },
 
   // 配置文件（便携模式，保存在程序目录下）
   configGet: (key) => ipcRenderer.invoke('config-get', key),

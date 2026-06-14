@@ -133,8 +133,7 @@ const StreamManager = {
     if (AppState.cameraStream) return true;
     try {
       const deviceId = UI.cameraSelect.value;
-      const res = UI.cameraResolution.value || '1280x720';
-      const [w, h] = res.split('x').map(Number);
+      const [w, h] = [1280, 720];
       AppState.cameraStream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: w }, height: { ideal: h } }
       });
@@ -201,8 +200,7 @@ const StreamManager = {
     if (!AppState.cameraStream) return;
 
     const deviceId = UI.cameraSelect.value;
-    const res = UI.cameraResolution.value || '1280x720';
-    const [w, h] = res.split('x').map(Number);
+    const [w, h] = [1280, 720];
 
     await window.electronAPI.openCameraWindow(deviceId);
     AppState.cameraWindowOpen = true;

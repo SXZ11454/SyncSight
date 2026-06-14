@@ -216,8 +216,10 @@ const SignalingManager = {
 
       if (result.success) {
         AppState.isStreaming = true;
-        // 显示浮动工具栏（独立窗口）
-        window.electronAPI.showToolbar();
+        // 显示浮动工具栏（独立窗口）— 仅在开关开启时
+        if (UI.floatingToolbarSwitch.checked) {
+          window.electronAPI.showToolbar();
+        }
         // 禁用源选择
         document.querySelectorAll('.source-item').forEach(el => el.classList.add('disabled'));
         AppState.serverInfo = result.serverInfo;

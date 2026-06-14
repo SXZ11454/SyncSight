@@ -15,12 +15,31 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set version from tag
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v',''
           npm version $version --no-git-tag-version
           Write-Host "Version set to $version"
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          # 获取上一个 tag
+          $prevTag = git tag --sort=-version:refname | Select-Object -Skip 1 -First 1
+          if ($prevTag) {
+            Write-Host "Generating notes from $prevTag to $tag"
+            $log = git log "$prevTag..HEAD" --pretty=format:"- %s (%h)" --no-merges
+          } else {
+            Write-Host "No previous tag, generating notes from beginning"
+            $log = git log --pretty=format:"- %s (%h)" --no-merges
+          }
+          # 保存到文件（避免多行字符串问题）
+          $log | Out-File -FilePath release_notes.txt -Encoding utf8
+          Write-Host "Release notes generated"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,7 +49,16 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build & Publish NSIS installer to GitHub Release
-        run: npm run dist -- --publish always
+      - name: Build NSIS installer
+        run: npm run dist -- --publish never
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SyncSight ${{ github.ref_name }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
+          files: dist/SyncSight-*-setup.exe
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

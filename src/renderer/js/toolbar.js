@@ -34,6 +34,14 @@ ipcRenderer.on('toolbar-set-lang', (_event, labels) => {
     const label = parent.querySelector('.tb-label');
     if (label) label.textContent = text;
   });
+  // 等字体加载完成后通知主进程重新调整窗口大小
+  document.fonts.ready.then(() => {
+    requestAnimationFrame(() => {
+      const toolbar = document.getElementById('toolbar');
+      const rect = toolbar.getBoundingClientRect();
+      ipcRenderer.send('toolbar-resize', { width: Math.ceil(rect.width), height: Math.ceil(rect.height) });
+    });
+  });
 });
 
 // ---- 绑定点击事件 ----

@@ -12,7 +12,6 @@ const UI = {
   micSelectSection: document.getElementById('micSelectSection'),
   cameraSelect: document.getElementById('cameraSelect'),
   cameraSelectSection: document.getElementById('cameraSelectSection'),
-  cameraResolution: document.getElementById('cameraResolution'),
   portInput: document.getElementById('portInput'),
   serverUrl: document.getElementById('serverUrl'),
   statusDot: document.getElementById('statusDot'),
@@ -376,7 +375,7 @@ UI.floatingToolbarSwitch.addEventListener('change', () => {
   saveConfig('floatingToolbar', enabled);
 
   // 如果正在共享，立即显示/隐藏工具栏
-  if (AppState.isSharing) {
+  if (AppState.isStreaming) {
     if (enabled) {
       window.electronAPI.showToolbar();
     } else {
@@ -385,6 +384,14 @@ UI.floatingToolbarSwitch.addEventListener('change', () => {
   }
 
   addLog(I18n.t(enabled ? 'log.toolbarEnabled' : 'log.toolbarDisabled'), 'info');
+});
+
+// 工具栏窗口关闭时同步开关状态
+window.electronAPI.onToolbarClosed(() => {
+  if (UI.floatingToolbarSwitch.checked) {
+    UI.floatingToolbarSwitch.checked = false;
+    saveConfig('floatingToolbar', false);
+  }
 });
 
 // ============ 日志等级选择 ============
