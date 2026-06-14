@@ -216,6 +216,8 @@ const SignalingManager = {
 
       if (result.success) {
         AppState.isStreaming = true;
+        // 显示浮动工具栏（独立窗口）
+        window.electronAPI.showToolbar();
         // 禁用源选择
         document.querySelectorAll('.source-item').forEach(el => el.classList.add('disabled'));
         AppState.serverInfo = result.serverInfo;
@@ -253,42 +255,41 @@ const SignalingManager = {
   async stopSharing() {
     UI.stopBtn.disabled = true;
 
-    // 收起预览区动画
-    animatePreviewCollapse(async () => {
-      try {
-        this.cleanupPeerConnection();
-        window.electronAPI.removeAllListeners('signaling-message');
-        window.electronAPI.removeAllListeners('receiver-disconnected');
-        StreamManager.stopCapture();
-        await StreamManager.closeCameraWindow();
-        await window.electronAPI.stopSharing();
+    try {
+      this.cleanupPeerConnection();
+      window.electronAPI.removeAllListeners('signaling-message');
+      window.electronAPI.removeAllListeners('receiver-disconnected');
+      StreamManager.stopCapture();
+      await StreamManager.closeCameraWindow();
+      await window.electronAPI.stopSharing();
 
-        AppState.isStreaming = false;
-        // 恢复源选择
-        document.querySelectorAll('.source-item').forEach(el => el.classList.remove('disabled'));
-        AppState.serverInfo = null;
-        UI.serverUrl.textContent = '';
-        UI.roomIdEl.textContent = '';
-        UI.addressRow.style.display = 'none';
-        UI.roomIdRow.style.display = 'none';
-        UI.statusDot.classList.remove('active');
-        UI.statusText.textContent = I18n.t('server.statusNotRunning');
-        UI.statusText.classList.remove('active');
-        UI.startBtn.textContent = I18n.t('action.start');
-        UI.startBtn.disabled = false;
-        UI.stopBtn.disabled = true;
-        UI.portInput.disabled = false;
+      AppState.isStreaming = false;
+      // 隐藏浮动工具栏（独立窗口）
+      window.electronAPI.hideToolbar();
+      // 恢复源选择
+      document.querySelectorAll('.source-item').forEach(el => el.classList.remove('disabled'));
+      AppState.serverInfo = null;
+      UI.serverUrl.textContent = '';
+      UI.roomIdEl.textContent = '';
+      UI.addressRow.style.display = 'none';
+      UI.roomIdRow.style.display = 'none';
+      UI.statusDot.classList.remove('active');
+      UI.statusText.textContent = I18n.t('server.statusNotRunning');
+      UI.statusText.classList.remove('active');
+      UI.startBtn.textContent = I18n.t('action.start');
+      UI.startBtn.disabled = false;
+      UI.stopBtn.disabled = true;
+      UI.portInput.disabled = false;
 
-        addLog(I18n.t('log.sharingStopped'), 'success');
+      addLog(I18n.t('log.sharingStopped'), 'success');
 
-        // 重新预览（不自动展开窗口）
-        if (AppState.selectedSourceId) {
-          await StreamManager.updatePreviewForSource(AppState.selectedSourceId);
-        }
-      } catch (err) {
-        addLog(I18n.t('log.stopError', { error: err.message }), 'error');
+      // 重新预览（不自动展开窗口）
+      if (AppState.selectedSourceId) {
+        await StreamManager.updatePreviewForSource(AppState.selectedSourceId);
       }
-    });
+    } catch (err) {
+      addLog(I18n.t('log.stopError', { error: err.message }), 'error');
+    }
   }
 };
 

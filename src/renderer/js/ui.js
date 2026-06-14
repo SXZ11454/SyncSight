@@ -45,7 +45,8 @@ const UI = {
   frameRateSelect: document.getElementById('frameRateSelect'),
   langSelect: document.getElementById('langSelect'),
   previewVideo: document.getElementById('previewVideo'),
-  previewInfo: document.getElementById('previewInfo')
+  previewInfo: document.getElementById('previewInfo'),
+  floatingToolbarSwitch: document.getElementById('floatingToolbarSwitch')
 };
 
 // ============ 布局常量 ============
@@ -95,6 +96,11 @@ async function loadConfig() {
     if (cfg.frameRate) {
       UI.frameRateSelect.value = cfg.frameRate;
       AppState.frameRate = parseInt(cfg.frameRate);
+    }
+
+    // 浮动工具栏
+    if (cfg.floatingToolbar !== undefined) {
+      UI.floatingToolbarSwitch.checked = cfg.floatingToolbar;
     }
   } catch (err) {
     console.warn('[CONFIG] Failed to load:', err.message);
@@ -201,8 +207,8 @@ function animatePreviewExpand() {
   UI.rightPanel.style.width = rightPanelUserWidth + 'px';
   UI.rightPanel.style.minWidth = RIGHT_PANEL_WIDTH + 'px';
 
-  // 展开后按钮图标改为向左折叠
-  UI.togglePreviewBtn.setAttribute('icon', 'chevron_left');
+  // 展开后按钮图标改为向右折叠
+  UI.togglePreviewBtn.setAttribute('icon', 'chevron_right');
   UI.togglePreviewBtn.setAttribute('title', I18n.t('action.collapsePreview'));
 
   // 左栏宽度动画：0 -> LEFT_PANEL_WIDTH
@@ -236,8 +242,8 @@ function animatePreviewCollapse(callback) {
   panel.style.overflow = 'hidden';
   resizer.style.display = 'none';
 
-  // 折叠后按钮图标改为向右展开
-  UI.togglePreviewBtn.setAttribute('icon', 'chevron_right');
+  // 折叠后按钮图标改为向左展开
+  UI.togglePreviewBtn.setAttribute('icon', 'chevron_left');
   UI.togglePreviewBtn.setAttribute('title', I18n.t('action.expandPreview'));
 
   // 左栏宽度动画：当前宽度 -> 0
@@ -362,6 +368,23 @@ UI.darkModeSwitch.addEventListener('change', () => {
     document.documentElement.style.removeProperty('--md-sys-color-outline-variant');
   }
   saveConfig('darkMode', isDark);
+});
+
+// ============ 浮动工具栏开关 ============
+UI.floatingToolbarSwitch.addEventListener('change', () => {
+  const enabled = UI.floatingToolbarSwitch.checked;
+  saveConfig('floatingToolbar', enabled);
+
+  // 如果正在共享，立即显示/隐藏工具栏
+  if (AppState.isSharing) {
+    if (enabled) {
+      window.electronAPI.showToolbar();
+    } else {
+      window.electronAPI.hideToolbar();
+    }
+  }
+
+  addLog(I18n.t(enabled ? 'log.toolbarEnabled' : 'log.toolbarDisabled'), 'info');
 });
 
 // ============ 日志等级选择 ============
@@ -555,4 +578,75 @@ UI.shareAudio.addEventListener('change', () => {
 
 UI.shareVideo.addEventListener('change', () => {
   if (AppState.isStreaming) StreamManager.rebuildCompositeStream();
+});
+
+// ============ 共享浮动工具栏（独立窗口，通过IPC通信） ============
+const ToolbarBridge = {
+
+  // 将当前开关状态同步到工具栏窗口
+  syncState() {
+    window.electronAPI.syncToolbarState({
+      mic: UI.shareMic.checked,
+      video: UI.shareVideo.checked,
+      camera: UI.shareCamera.checked,
+      audio: UI.shareAudio.checked
+    });
+  },
+
+  // 接收来自独立工具栏窗口的操作指令
+  init() {
+    window.electronAPI.onToolbarAction((action) => {
+      switch (action) {
+        case 'toggle-mic':
+          UI.shareMic.checked = !UI.shareMic.checked;
+          UI.shareMic.dispatchEvent(new Event('change'));
+          break;
+        case 'toggle-video':
+          UI.shareVideo.checked = !UI.shareVideo.checked;
+          UI.shareVideo.dispatchEvent(new Event('change'));
+          break;
+        case 'toggle-camera':
+          UI.shareCamera.checked = !UI.shareCamera.checked;
+          UI.shareCamera.dispatchEvent(new Event('change'));
+          break;
+        case 'toggle-audio':
+          UI.shareAudio.checked = !UI.shareAudio.checked;
+          UI.shareAudio.dispatchEvent(new Event('change'));
+          break;
+        case 'stop-sharing':
+          SignalingManager.stopSharing();
+          break;
+      }
+      // 操作后立即同步状态到工具栏
+      this.syncState();
+    });
+
+    // 右侧面板开关变化时同步到工具栏
+    UI.shareMic.addEventListener('change', () => { if (AppState.isStreaming) this.syncState(); });
+    UI.shareVideo.addEventListener('change', () => { if (AppState.isStreaming) this.syncState(); });
+    UI.shareCamera.addEventListener('change', () => { if (AppState.isStreaming) this.syncState(); });
+    UI.shareAudio.addEventListener('change', () => { if (AppState.isStreaming) this.syncState(); });
+  },
+
+  // 同步i18n翻译到工具栏窗口
+  syncI18n() {
+    const labels = {
+      'tbMic': I18n.t('toolbar.mic'),
+      'tbVideo': I18n.t('toolbar.video'),
+      'tbCamera': I18n.t('toolbar.camera'),
+      'tbAudio': I18n.t('toolbar.audio'),
+      'tbStop': I18n.t('toolbar.stop')
+    };
+    window.electronAPI.setToolbarLang(labels);
+  }
+};
+
+ToolbarBridge.init();
+
+// 初始化时同步一次i18n
+setTimeout(() => ToolbarBridge.syncI18n(), 100);
+
+// 语言切换时同步i18n到工具栏
+I18n.onChange(() => {
+  ToolbarBridge.syncI18n();
 });

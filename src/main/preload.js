@@ -18,6 +18,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resizeToExpanded: () => ipcRenderer.invoke('resize-to-expanded'),
   resizeToCompact: () => ipcRenderer.invoke('resize-to-compact'),
 
+  // 工具栏窗口
+  showToolbar: () => ipcRenderer.invoke('show-toolbar'),
+  hideToolbar: () => ipcRenderer.invoke('hide-toolbar'),
+  syncToolbarState: (state) => ipcRenderer.send('toolbar-sync-state', state),
+  setToolbarLang: (labels) => ipcRenderer.send('set-toolbar-lang', labels),
+  onToolbarAction: (callback) => {
+    ipcRenderer.on('toolbar-action-from-main', (_event, action) => callback(action));
+  },
+
   // 配置文件（便携模式，保存在程序目录下）
   configGet: (key) => ipcRenderer.invoke('config-get', key),
   configGetAll: () => ipcRenderer.invoke('config-get-all'),

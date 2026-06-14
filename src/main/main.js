@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, desktopCapturer, ipcMain, Menu, screen } = require('electron');
 const path = require('path');
 const P2PServer = require('./p2p-server');
 const Config = require('./config');
@@ -23,6 +23,7 @@ let p2pServer = null;
 let streaming = false;
 let currentRoomId = null;
 let cameraWindow = null;
+let toolbarWindow = null; // 共享浮动工具栏窗口
 
 function createWindow() {
   // Remove default menu
@@ -57,8 +58,10 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
     closeCameraWindow();
+    closeToolbarWindow();
     stopSharing();
   });
+
 }
 
 app.whenReady().then(() => {
@@ -403,6 +406,96 @@ function closeCameraWindow() {
 ipcMain.on('send-camera-stream-to-window', (event, data) => {
   if (cameraWindow && !cameraWindow.isDestroyed()) {
     cameraWindow.webContents.send('camera-stream-id', data);
+  }
+});
+
+// ============ 共享浮动工具栏窗口 ============
+function createToolbarWindow() {
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    toolbarWindow.focus();
+    return;
+  }
+
+  // 获取主显示器信息，定位到屏幕顶部居中
+  const display = screen.getPrimaryDisplay();
+  const { width: screenWidth } = display.workAreaSize;
+
+  // 窗口尺寸（留边距）
+  const margin = 24;
+  const tbWidth = 428;
+  const tbHeight = 88;
+
+  toolbarWindow = new BrowserWindow({
+    width: tbWidth,
+    height: tbHeight,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    hasShadow: false,
+    // 屏幕顶部居中，留上边距
+    x: Math.round((screenWidth - tbWidth) / 2),
+    y: Math.round(display.workArea.y + margin),
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      sandbox: false
+    }
+  });
+
+  toolbarWindow.loadFile(path.join(__dirname, '../renderer/toolbar.html'));
+
+  toolbarWindow.on('closed', () => {
+    toolbarWindow = null;
+  });
+}
+
+function closeToolbarWindow() {
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    // 先发退出动画信号，等动画完成后再销毁窗口
+    toolbarWindow.webContents.send('toolbar-close');
+    ipcMain.once('toolbar-closed', () => {
+      if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+        toolbarWindow.close();
+        toolbarWindow = null;
+      }
+    });
+  }
+}
+
+// 工具栏位置固定在屏幕顶部，不再跟随主窗口
+// （用户可通过拖动自行调整位置）
+
+// 主进程接收工具栏按钮点击，转发给渲染器
+ipcMain.on('toolbar-action', (_event, action) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('toolbar-action-from-main', action);
+  }
+});
+
+// 渲染器请求显示/隐藏工具栏
+ipcMain.handle('show-toolbar', () => {
+  createToolbarWindow();
+  return { success: true };
+});
+
+ipcMain.handle('hide-toolbar', () => {
+  closeToolbarWindow();
+  return { success: true };
+});
+
+// 渲染器同步开关状态到工具栏
+ipcMain.on('toolbar-sync-state', (_event, state) => {
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    toolbarWindow.webContents.send('toolbar-sync-state', state);
+  }
+});
+
+// 渲染器同步i18n翻译到工具栏
+ipcMain.on('set-toolbar-lang', (_event, labels) => {
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    toolbarWindow.webContents.send('toolbar-set-lang', labels);
   }
 });
 

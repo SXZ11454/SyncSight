@@ -11,7 +11,8 @@ const DEFAULTS = {
   port: 3000,
   mode: 'bt',
   logLevel: 'info',
-  frameRate: 30
+  frameRate: 30,
+  floatingToolbar: true
 };
 
 let _configPath = null;

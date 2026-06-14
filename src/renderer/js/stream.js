@@ -36,8 +36,11 @@ const StreamManager = {
         audio: false
       });
 
-      // 首次自动预览时展开窗口
-      animatePreviewExpand();
+      // 首次自动预览时展开窗口（仅一次）
+      if (!AppState.hasAutoExpanded) {
+        AppState.hasAutoExpanded = true;
+        animatePreviewExpand();
+      }
       updatePreview();
       addLog(I18n.t('log.autoPreviewStarted'), 'success');
     } catch (err) {

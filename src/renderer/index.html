@@ -468,7 +468,7 @@
       <!-- 可拖拽分隔条 -->
       <div class="resizer" id="resizer"><mdui-divider vertical></mdui-divider></div>
       <!-- 展开/折叠按钮 - FAB 浮动在右栏左下角 -->
-      <mdui-fab id="togglePreviewBtn" icon="chevron_right" size="small" variant="surface" data-i18n-title="action.expandPreview" title="展开预览" style="position:absolute;left:18px;bottom:12px;z-index:100;"></mdui-fab>
+      <mdui-fab id="togglePreviewBtn" icon="chevron_left" size="small" variant="surface" data-i18n-title="action.expandPreview" title="展开预览" style="position:absolute;left:18px;bottom:12px;z-index:100;"></mdui-fab>
       <!-- 右栏内容区 -->
       <div class="right-inner">
       <div class="right-content">
@@ -483,7 +483,7 @@
               <div id="screenList" class="source-grid">
                 <div class="empty-state"><mdui-circular-progress></mdui-circular-progress><p style="margin-top:8px;font-size:12px;" data-i18n="source.loading">加载中...</p></div>
               </div>
-              <mdui-button-icon id="refreshBtn" icon="refresh" style="position:absolute;top:4px;right:4px;"></mdui-button-icon>
+              <mdui-button-icon id="refreshBtn" icon="refresh" data-i18n-title="action.refresh" title="刷新源列表" style="position:absolute;top:4px;right:4px;"></mdui-button-icon>
             </div>
           </mdui-tab-panel>
           <mdui-tab-panel slot="panel" value="window">
@@ -565,6 +565,10 @@
             <mdui-menu-item value="zh-CN">中文</mdui-menu-item>
             <mdui-menu-item value="en-US">English</mdui-menu-item>
           </mdui-select>
+        </div>
+        <div class="option-row" style="margin-top:8px;">
+          <span style="font-size:13px;" data-i18n="personalize.floatingToolbar">浮动工具栏</span>
+          <mdui-switch id="floatingToolbarSwitch" checked></mdui-switch>
         </div>
       </div>
 

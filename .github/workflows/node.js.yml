@@ -16,6 +16,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set version from tag
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          npm version $version --no-git-tag-version
+          Write-Host "Version set to $version"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
