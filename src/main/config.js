@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULTS = {
-  language: 'zh-CN',
+  language: 'auto',
   darkMode: false,
   port: 3000,
   mode: 'bt',

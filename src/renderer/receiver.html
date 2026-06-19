@@ -14,43 +14,81 @@
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
     video { width: 100%; height: 100%; object-fit: contain; display: block; }
     .material-icons { font-size: 24px; vertical-align: middle; }
-    
-    /* 状态提示 */
-    #status {
+
+    /* 浮动面板 */
+    #panel {
       position: fixed;
       top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(32, 32, 32, 0.92);
-      color: #e0e0e0;
-      padding: 8px 18px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 500;
+      left: 16px;
       z-index: 100;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    #panel-toggle {
+      flex-shrink: 0;
+      --mdui-shape-corner-full: 50%;
+    }
+
+    #panel-body {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 180px;
+      max-width: 240px;
+      overflow: hidden;
+      transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                  transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                  max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                  padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                  min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: left center;
+    }
+
+    #panel-body.collapsed {
+      opacity: 0;
+      transform: scaleX(0) translateX(-8px);
+      max-width: 0;
+      min-width: 0;
+      padding: 0;
+      pointer-events: none;
+    }
+
+    /* 面板内行 */
+    .panel-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      color: #333;
+      font-size: 13px;
     }
-    #status .material-icons { font-size: 16px; }
-    
-    /* 种子徽章 */
+    .panel-row .material-icons {
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .panel-row mdui-select {
+      width: 160px;
+      --mdui-shape-corner-extra-small: 12px;
+    }
+
+    /* Seed 徽章 */
     #seed-badge {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      background: rgba(32, 32, 32, 0.92);
-      color: #81c784;
-      padding: 6px 14px;
-      border-radius: 20px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      color: #2e7d32;
       font-size: 12px;
       font-weight: 500;
-      z-index: 100;
-      display: none;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     }
-    
+    #seed-badge .material-icons { font-size: 14px; }
+
     /* 错误弹窗 */
     #error-modal {
       position: fixed;
@@ -102,13 +140,31 @@
 </head>
 <body>
   <video id="video" autoplay playsinline controls></video>
-  <div id="status">
-    <i class="material-icons">wifi_find</i>
-    <span data-i18n="receiver.connecting">正在连接...</span>
-  </div>
-  <div id="seed-badge">
-    <i class="material-icons" style="font-size:14px;margin-right:4px;">hub</i>
-    <span data-i18n="receiver.seedBadge">SEED 中继</span>
+
+  <!-- 浮动面板 -->
+  <div id="panel">
+    <mdui-button-icon id="panel-toggle" icon="settings" variant="tonal"></mdui-button-icon>
+    <div id="panel-body">
+      <!-- 状态 -->
+      <div class="panel-row" id="status">
+        <i class="material-icons">wifi_find</i>
+        <span data-i18n="receiver.connecting">正在连接...</span>
+      </div>
+      <!-- Seed 徽章 -->
+      <div class="panel-row" id="seed-badge">
+        <i class="material-icons">hub</i>
+        <span data-i18n="receiver.seedBadge">SEED 中继</span>
+      </div>
+      <!-- 语言选择 -->
+      <div class="panel-row">
+        <i class="material-icons">language</i>
+        <mdui-select id="langSelect" variant="outlined" value="auto">
+          <mdui-menu-item value="auto" data-i18n="receiver.langAuto">自动选择 (简体中文)</mdui-menu-item>
+          <mdui-menu-item value="zh-CN">简体中文</mdui-menu-item>
+          <mdui-menu-item value="en-US">English</mdui-menu-item>
+        </mdui-select>
+      </div>
+    </div>
   </div>
   <div id="error-modal">
     <i class="material-icons">error</i>
@@ -121,8 +177,39 @@
 
   <script>
     // Initialize i18n
-    I18n.init('zh-CN');
+    const initLang = I18n.init('auto');
+    document.getElementById('langSelect').value = initLang;
     I18n.updateDOM();
+    updateLangAutoLabel();
+
+    // 面板收缩/展开
+    const panelBody = document.getElementById('panel-body');
+    const panelToggle = document.getElementById('panel-toggle');
+    let panelExpanded = true;
+
+    panelToggle.addEventListener('click', () => {
+      panelExpanded = !panelExpanded;
+      panelBody.classList.toggle('collapsed', !panelExpanded);
+      panelToggle.icon = panelExpanded ? 'settings' : 'settings';
+      panelToggle.setAttribute('variant', panelExpanded ? 'tonal' : 'filled');
+    });
+
+    // 语言切换
+    document.getElementById('langSelect').addEventListener('change', (e) => {
+      I18n.setLanguage(e.target.value);
+      I18n.updateDOM();
+      updateLangAutoLabel();
+    });
+
+    // 更新"自动选择"选项的显示文本，反映当前系统语言
+    function updateLangAutoLabel() {
+      const autoItem = document.querySelector('#langSelect mdui-menu-item[value="auto"]');
+      if (autoItem) {
+        const sysLang = I18n.detectSystemLang();
+        const sysName = sysLang === 'zh-CN' ? '简体中文' : 'English';
+        autoItem.textContent = I18n.t('receiver.langAuto') + ' (' + sysName + ')';
+      }
+    }
 
     console.log('[RECEIVER] Page loaded');
     
@@ -418,7 +505,7 @@
       if (isSeed || !remoteStream) return;
       
       isSeed = true;
-      seedBadge.style.display = 'block';
+      seedBadge.style.display = 'flex';
       
       socket.emit('REGISTER_SEED', { roomId: currentRoomId });
       console.log('[RECEIVER] Registered as seed');

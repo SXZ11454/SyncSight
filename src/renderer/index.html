@@ -555,8 +555,9 @@
         </div>
         <div class="option-row" style="margin-top:8px;">
           <span style="font-size:13px;" data-i18n="personalize.language">语言</span>
-          <mdui-select id="langSelect" variant="outlined" value="zh-CN" style="width:120px;">
-            <mdui-menu-item value="zh-CN">中文</mdui-menu-item>
+          <mdui-select id="langSelect" variant="outlined" value="auto" style="width:160px;">
+            <mdui-menu-item value="auto" data-i18n="personalize.langAuto">自动选择 (简体中文)</mdui-menu-item>
+            <mdui-menu-item value="zh-CN">简体中文</mdui-menu-item>
             <mdui-menu-item value="en-US">English</mdui-menu-item>
           </mdui-select>
         </div>
@@ -629,10 +630,21 @@
   <script src="js/signaling.js"></script>
   <script>
     // Initialize i18n before app logic
-    const lang = I18n.init('zh-CN');
+    const lang = I18n.init('auto');
     document.getElementById('langSelect').value = lang;
+    updateLangAutoLabel();
     // Load saved config (language, dark mode, port, mode, etc.)
     loadConfig();
+
+    function updateLangAutoLabel() {
+      const autoItem = document.querySelector('#langSelect mdui-menu-item[value="auto"]');
+      if (autoItem) {
+        const sysLang = I18n.detectSystemLang();
+        const sysName = sysLang === 'zh-CN' ? '简体中文' : 'English';
+        autoItem.textContent = I18n.t('personalize.langAuto') + ' (' + sysName + ')';
+      }
+    }
+    window.updateLangAutoLabel = updateLangAutoLabel;
   </script>
 </body>
 </html>
