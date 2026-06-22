@@ -17,8 +17,11 @@
       "src/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "artifactName": "SyncSight-${version}-setup.${ext}",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64", "ia32", "arm64"] }
+      ],
+      "artifactName": "SyncSight-${version}-win-${arch}-${ext}",
       "publish": {
         "provider": "github",
         "owner": "SXZ11454",
@@ -32,6 +35,15 @@
       "installerLanguages": ["zh-CN", "en-US"],
       "language": "2052",
       "unicode": true
+    },
+    "mac": {
+      "target": ["zip", "dmg"],
+      "artifactName": "SyncSight-${version}-mac-${arch}.${ext}"
+    },
+    "linux": {
+      "target": ["deb", "rpm", "zip"],
+      "artifactName": "SyncSight-${version}-linux-${arch}.${ext}",
+      "category": "Utility"
     }
   },
   "devDependencies": {

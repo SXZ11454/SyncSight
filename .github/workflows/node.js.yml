@@ -9,8 +9,34 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - runner: windows-latest
+            platform: win
+            arch: x64
+          - runner: windows-latest
+            platform: win
+            arch: ia32
+          - runner: windows-latest
+            platform: win
+            arch: arm64
+          # macOS Intel & Apple Silicon
+          - runner: macos-latest
+            platform: mac
+            arch: x64
+          - runner: macos-latest
+            platform: mac
+            arch: arm64
+          # Linux
+          - runner: ubuntu-latest
+            platform: linux
+            arch: x64
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout code
@@ -24,8 +50,29 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build NSIS installer
-        run: npm run dist -- --publish never
+      - name: Build (${{ matrix.platform }}-${{ matrix.arch }})
+        run: npm run dist -- --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/*.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: release/
+
+      - name: List release files
+        run: ls -lh release/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -33,6 +80,6 @@ jobs:
           name: SyncSight ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: dist/SyncSight-*-setup.exe
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
