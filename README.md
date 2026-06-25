@@ -105,4 +105,4 @@ SyncSight/
 
 ## 许可证
 
-MIT License
+AGPL-3.0 License
