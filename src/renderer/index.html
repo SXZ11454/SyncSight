@@ -6,442 +6,8 @@
   <title data-i18n="app.title">SyncSight - 屏幕共享发送端</title>
   <link rel="stylesheet" href="../assets/mdui.css" />
   <link rel="stylesheet" href="../assets/icon.css" />
+  <link rel="stylesheet" href="./css/index.css" />
   <script src="../assets/mdui.global.js"></script>
-  <style>
-    @font-face {
-      font-family: 'Roboto';
-      src: url('../assets/Roboto-Regular.ttf') format('truetype');
-      font-weight: 400;
-      font-style: normal;
-    }
-
-    @font-face {
-      font-family: 'Noto Sans SC';
-      src: url('../assets/NotoSansSC-Regular.otf') format('opentype');
-      font-weight: 400;
-      font-style: normal;
-    }
-
-    :root {
-      --md-sys-color-primary: #6750a4;
-      --md-sys-color-on-primary: #fff;
-      --md-sys-color-primary-container: #eaddff;
-      --md-sys-color-on-primary-container: #21005d;
-      --md-sys-color-secondary: #625b71;
-      --md-sys-color-surface: #fef7ff;
-      --md-sys-color-surface-container: #f3edf7;
-      --md-sys-color-surface-container-low: #f7f2fa;
-      --md-sys-color-surface-container-high: #ece6f0;
-      --md-sys-color-on-surface: #1d1b20;
-      --md-sys-color-on-surface-variant: #49454f;
-      --md-sys-color-outline: #79747e;
-      --md-sys-color-outline-variant: #cac4d0;
-      --md-sys-color-error: #b3261e;
-      --md-sys-color-success: #386a20;
-    }
-
-    * { box-sizing: border-box; cursor: default; font-family: 'Roboto', 'Noto Sans SC', sans-serif; }
-
-    body {
-      margin: 0;
-      font-family: 'Roboto', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      background: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
-      user-select: none;
-      -webkit-user-select: none;
-      position: relative;
-    }
-
-    .material-icons { font-size: 24px; }
-
-    .main-layout {
-      display: flex;
-      height: 100vh;
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* 左栏 - 视频预览 */
-    .left-panel {
-      flex: 1;
-      display: none;
-      flex-direction: column;
-      background: #1c1b1f;
-      min-width: 400px;
-      overflow: hidden;
-      opacity: 0;
-    }
-
-    /* 分隔条（位于右栏左侧） */
-    .resizer {
-      width: 12px;
-      cursor: col-resize;
-      background: transparent;
-      flex-shrink: 0;
-      position: relative;
-      display: none;
-      order: -1;
-      align-items: center;
-      justify-content: center;
-    }
-    .resizer mdui-divider {
-      height: 100%;
-      pointer-events: none;
-    }
-
-    .preview-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      background: #2b2930;
-      color: #e6e0e9;
-      font-size: 13px;
-    }
-
-    .preview-header .title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 500;
-    }
-
-    .preview-area {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-      background: #1c1b1f;
-    }
-
-    .preview-area video {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    .preview-empty {
-      text-align: center;
-      color: #49454f;
-    }
-    .preview-empty .material-icons { font-size: 64px; opacity: 0.3; }
-    .preview-empty p { margin-top: 12px; font-size: 14px; }
-
-    /* 右栏 - 控制面板（含分隔条） */
-    .right-panel {
-      flex: none;
-      width: 440px;
-      min-width: 440px;
-      display: flex;
-      flex-direction: row;
-      background: var(--md-sys-color-surface);
-      overflow: hidden;
-      position: relative;
-    }
-    .right-inner {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      min-width: 0;
-    }
-
-    .right-content {
-      flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding-top: 4px;
-    }
-
-    /* 通用 section */
-    .section {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--md-sys-color-outline-variant);
-    }
-
-    .section-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--md-sys-color-primary);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-    }
-
-    .section-title .material-icons {
-      font-size: 14px;
-    }
-
-    /* 源选择 */
-    .source-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      max-height: 180px;
-      overflow-y: auto;
-      padding: 2px 0;
-    }
-
-    .source-item {
-      background: var(--md-sys-color-surface-container-low);
-      border: 1.5px solid transparent;
-      border-radius: 6px;
-      padding: 6px;
-      transition: all 0.15s;
-      width: 130px;
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .source-item:hover {
-      border-color: var(--md-sys-color-outline-variant);
-    }
-    .source-item.selected {
-      border-color: var(--md-sys-color-primary);
-      background: var(--md-sys-color-primary-container);
-    }
-
-    .source-item.disabled {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-
-    .source-item img {
-      width: 100%;
-      height: 70px;
-      object-fit: contain;
-      background: #1c1b1f;
-      border-radius: 4px;
-      margin-bottom: 6px;
-    }
-
-    .source-item .name-row {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      width: 100%;
-    }
-    .source-item mdui-radio { flex-shrink: 0; }
-    .source-item .name {
-      font-size: 11px;
-      color: var(--md-sys-color-on-surface);
-      line-height: 1.3;
-      font-weight: 500;
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    /* 共享选项 */
-    .options-list {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .option-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 0;
-    }
-
-    .switch-label {
-      font-size: 12px;
-      color: var(--md-sys-color-on-surface);
-      flex: 1;
-    }
-    .option-row mdui-checkbox { flex: 1; }
-    .option-row .option-actions {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .mic-select-section { margin-top: 8px; }
-
-    /* 流状态标签 */
-    .stream-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      background: var(--md-sys-color-surface-container-high);
-      color: var(--md-sys-color-success);
-      font-weight: 500;
-    }
-    .stream-status.off {
-      background: var(--md-sys-color-surface-container);
-      color: var(--md-sys-color-outline);
-    }
-    .stream-status .dot {
-      width: 5px; height: 5px;
-      border-radius: 50%;
-      background: var(--md-sys-color-success);
-    }
-    .stream-status.off .dot { background: var(--md-sys-color-outline); }
-
-    /* 模式描述 */
-    .mode-desc {
-      font-size: 11px;
-      color: var(--md-sys-color-on-surface-variant);
-      margin-top: 8px;
-      line-height: 1.5;
-    }
-
-    /* 服务器状态 */
-    .server-info {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .port-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .port-row mdui-text-field { flex: 1; }
-
-    .info-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-    }
-    .info-row .label {
-      color: var(--md-sys-color-on-surface-variant);
-      min-width: 40px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .info-row .value {
-      flex: 1;
-      font-size: 12px;
-      word-break: break-all;
-    }
-
-    .status-indicator {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .status-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--md-sys-color-outline-variant);
-      transition: all 0.3s;
-    }
-    .status-dot.active {
-      background: var(--md-sys-color-success);
-      box-shadow: 0 0 6px rgba(56,106,32,0.4);
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-
-    .status-text {
-      font-size: 12px;
-      color: var(--md-sys-color-on-surface-variant);
-    }
-    .status-text.active { color: var(--md-sys-color-success); }
-
-    /* 按钮 */
-    .btn-group {
-      display: flex;
-      gap: 8px;
-    }
-    .btn-group mdui-button { flex: 1; }
-
-    /* 日志 */
-    .log-section {
-      display: flex;
-      flex-direction: column;
-      height: 200px;
-      min-height: 60px;
-      max-height: 80vh;
-      flex-shrink: 0;
-      position: relative;
-    }
-    .log-resize-handle {
-      height: 8px;
-      cursor: ns-resize;
-      background: transparent;
-      position: relative;
-      flex-shrink: 0;
-    }
-    .log-resize-handle::after {
-      content: '';
-      position: absolute;
-      left: 16px;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      height: 3px;
-      border-radius: 2px;
-      background: var(--md-sys-color-outline-variant);
-      transition: background 0.15s ease;
-    }
-    .log-resize-handle:hover::after,
-    .log-resize-handle.active::after {
-      background: var(--md-sys-color-primary);
-    }
-    .log-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 6px;
-      flex-shrink: 0;
-    }
-    .log-container {
-      background: #1c1b1f;
-      border-radius: 4px;
-      padding: 8px 10px;
-      overflow-y: auto;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 10px;
-      line-height: 1.4;
-      color: #e6e0e9;
-      flex: 1;
-      min-height: 30px;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-
-    .log-entry {
-      padding: 2px 0;
-      border-bottom: 1px solid #2b2930;
-      display: flex;
-      gap: 6px;
-    }
-    .log-entry:last-child { border-bottom: none; }
-    .log-time { color: #938f99; min-width: 62px; }
-    .log-level-info { color: #a8c7fa; }
-    .log-level-success { color: #a8dab5; }
-    .log-level-error { color: #f9b9b4; }
-    .log-level-warn { color: #fdd884; }
-    .log-message { color: #e6e0e9; word-break: break-all; }
-
-    .empty-state {
-      text-align: center;
-      padding: 20px;
-      color: var(--md-sys-color-on-surface-variant);
-    }
-    .empty-state mdui-circular-progress {
-      --mdui-color-primary: var(--md-sys-color-primary);
-    }
-
-  </style>
 </head>
 <body class="mdui-theme-light">
   <div class="main-layout">
@@ -546,6 +112,59 @@
         <div class="mode-desc" id="modeDesc" data-i18n="mode.btDesc">网状：客户端接收流后自动中继给新客户端，减轻主机带宽压力</div>
       </div>
 
+      <!-- 访问控制 -->
+      <div class="section">
+        <div class="section-title"><i class="material-icons">security</i> <span data-i18n="access.title">访问控制</span></div>
+        <mdui-segmented-button-group id="accessModeGroup" selects="single" value="public" full-width>
+          <mdui-segmented-button value="public" icon="public" data-i18n="access.public">公开</mdui-segmented-button>
+          <mdui-segmented-button value="invite" icon="link" data-i18n="access.invite">邀请</mdui-segmented-button>
+          <mdui-segmented-button value="password" icon="lock" data-i18n="access.password">密码</mdui-segmented-button>
+          <mdui-segmented-button value="approval" icon="person_add" data-i18n="access.approval">许可</mdui-segmented-button>
+        </mdui-segmented-button-group>
+
+        <!-- 邀请模式设置 -->
+        <div id="inviteSettings" style="display:none;margin-top:10px;">
+          <div class="option-row">
+            <span style="font-size:13px;" data-i18n="access.inviteCount">生成链接数</span>
+            <mdui-slider id="inviteCountSlider" value="5" min="1" max="20" style="flex:1;min-width:100px;"></mdui-slider>
+            <span id="inviteCountLabel" style="font-size:13px;min-width:24px;text-align:center;">5</span>
+          </div>
+          <div id="inviteLinksContainer" style="margin-top:8px;"></div>
+        </div>
+
+        <!-- 密码模式设置 -->
+        <div id="passwordSettings" style="display:none;margin-top:10px;">
+          <mdui-dropdown trigger="contextmenu" open-on-pointer id="passwordDropdown">
+            <mdui-text-field slot="trigger" id="accessPasswordField" variant="outlined" type="text" maxlength="32" style="width:100%;" data-i18n-placeholder="access.setPassword" placeholder="设置访问密码（最长32字符）"></mdui-text-field>
+            <mdui-menu id="passwordContextMenu">
+              <mdui-menu-item id="pwdCut" icon="content_cut">
+                <span data-i18n="edit.cut">剪切</span>
+                <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+X</span>
+              </mdui-menu-item>
+              <mdui-menu-item id="pwdCopy" icon="content_copy">
+                <span data-i18n="edit.copy">复制</span>
+                <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+C</span>
+              </mdui-menu-item>
+              <mdui-menu-item id="pwdPaste" icon="content_paste">
+                <span data-i18n="edit.paste">粘贴</span>
+                <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+V</span>
+              </mdui-menu-item>
+              <mdui-divider></mdui-divider>
+              <mdui-menu-item id="pwdSelectAll" icon="select_all">
+                <span data-i18n="edit.selectAll">全选</span>
+                <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+A</span>
+              </mdui-menu-item>
+            </mdui-menu>
+          </mdui-dropdown>
+        </div>
+
+        <!-- 许可模式设置 -->
+        <div id="approvalSettings" style="display:none;margin-top:10px;">
+          <div id="approvalList" style="max-height:150px;overflow-y:auto;"></div>
+          <div id="approvalEmpty" style="font-size:12px;color:var(--md-sys-color-on-surface-variant);text-align:center;padding:8px;" data-i18n="access.noPendingRequests">暂无待审批请求</div>
+        </div>
+      </div>
+
       <!-- 个性化 -->
       <div class="section">
         <div class="section-title"><i class="material-icons">palette</i> <span data-i18n="personalize.title">个性化</span></div>
@@ -557,8 +176,8 @@
           <span style="font-size:13px;" data-i18n="personalize.language">语言</span>
           <mdui-select id="langSelect" variant="outlined" value="auto" style="width:160px;">
             <mdui-menu-item value="auto" data-i18n="personalize.langAuto">自动选择 (简体中文)</mdui-menu-item>
-            <mdui-menu-item value="zh-CN">简体中文</mdui-menu-item>
-            <mdui-menu-item value="en-US">English</mdui-menu-item>
+            <mdui-menu-item value="zh-CN" data-i18n="personalize.langZh">简体中文</mdui-menu-item>
+            <mdui-menu-item value="en-US" data-i18n="personalize.langEn">English</mdui-menu-item>
           </mdui-select>
         </div>
         <div class="option-row" style="margin-top:8px;">
@@ -573,7 +192,28 @@
         <div class="server-info">
           <div class="port-row">
             <span class="label" data-i18n="server.port">端口</span>
-            <mdui-text-field id="portInput" type="number" value="3000" min="1024" max="65535" variant="outlined" style="max-width:120px;"></mdui-text-field>
+            <mdui-dropdown trigger="contextmenu" open-on-pointer id="portDropdown">
+              <mdui-text-field slot="trigger" id="portInput" type="number" value="3000" min="1024" max="65535" variant="outlined" style="max-width:120px;"></mdui-text-field>
+              <mdui-menu id="portContextMenu">
+                <mdui-menu-item id="portCut" icon="content_cut">
+                  <span data-i18n="edit.cut">剪切</span>
+                  <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+X</span>
+                </mdui-menu-item>
+                <mdui-menu-item id="portCopy" icon="content_copy">
+                  <span data-i18n="edit.copy">复制</span>
+                  <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+C</span>
+                </mdui-menu-item>
+                <mdui-menu-item id="portPaste" icon="content_paste">
+                  <span data-i18n="edit.paste">粘贴</span>
+                  <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+V</span>
+                </mdui-menu-item>
+                <mdui-divider></mdui-divider>
+                <mdui-menu-item id="portSelectAll" icon="select_all">
+                  <span data-i18n="edit.selectAll">全选</span>
+                  <span slot="end-icon" style="font-size:11px;color:var(--md-sys-color-on-surface-variant);margin-left:24px;">Ctrl+A</span>
+                </mdui-menu-item>
+              </mdui-menu>
+            </mdui-dropdown>
           </div>
           <div class="info-row" id="addressRow" style="display:none;">
             <span class="label" data-i18n="server.address">地址</span>
@@ -615,9 +255,15 @@
           </mdui-select>
         </div>
         <div class="log-resize-handle" id="logResizeHandle"></div>
-        <div id="logContainer" class="log-container">
-          <div class="log-entry" data-level="info"><span class="log-time" data-i18n="log.waiting">等待启动...</span></div>
-        </div>
+        <mdui-dropdown trigger="contextmenu" open-on-pointer id="logDropdown">
+          <div slot="trigger" id="logContainer" class="log-container">
+            <div class="log-entry" data-level="info"><span class="log-time" data-i18n="log.waiting">等待启动...</span></div>
+          </div>
+          <mdui-menu>
+            <mdui-menu-item id="ctxCopy" icon="content_copy" data-i18n="log.copy">复制</mdui-menu-item>
+            <mdui-menu-item id="ctxSelectAll" icon="select_all" data-i18n="log.selectAll">全选</mdui-menu-item>
+          </mdui-menu>
+        </mdui-dropdown>
       </div>
       </div><!-- /right-inner -->
     </div><!-- /right-panel -->
@@ -635,6 +281,7 @@
     updateLangAutoLabel();
     // Load saved config (language, dark mode, port, mode, etc.)
     loadConfig();
+    loadAccessConfig();
 
     function updateLangAutoLabel() {
       const autoItem = document.querySelector('#langSelect mdui-menu-item[value="auto"]');

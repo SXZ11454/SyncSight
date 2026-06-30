@@ -45,7 +45,18 @@ const UI = {
   langSelect: document.getElementById('langSelect'),
   previewVideo: document.getElementById('previewVideo'),
   previewInfo: document.getElementById('previewInfo'),
-  floatingToolbarSwitch: document.getElementById('floatingToolbarSwitch')
+  floatingToolbarSwitch: document.getElementById('floatingToolbarSwitch'),
+  // 访问控制
+  accessModeGroup: document.getElementById('accessModeGroup'),
+  inviteSettings: document.getElementById('inviteSettings'),
+  inviteCountSlider: document.getElementById('inviteCountSlider'),
+  inviteCountLabel: document.getElementById('inviteCountLabel'),
+  inviteLinksContainer: document.getElementById('inviteLinksContainer'),
+  passwordSettings: document.getElementById('passwordSettings'),
+  accessPasswordField: document.getElementById('accessPasswordField'),
+  approvalSettings: document.getElementById('approvalSettings'),
+  approvalList: document.getElementById('approvalList'),
+  approvalEmpty: document.getElementById('approvalEmpty')
 };
 
 // ============ 布局常量 ============
@@ -64,6 +75,7 @@ async function loadConfig() {
     if (cfg.language) {
       I18n.setLanguage(cfg.language);
       UI.langSelect.value = cfg.language;
+      if (window.updateLangAutoLabel) window.updateLangAutoLabel();
     }
 
     // 深色模式
@@ -328,10 +340,206 @@ UI.modeGroup.addEventListener('change', () => {
   saveConfig('mode', mode);
 });
 
+// ============ 访问控制 ============
+let inviteLinks = [];
+let pendingApprovals = new Map();
+
+async function loadAccessConfig() {
+  try {
+    const cfg = await window.electronAPI.configGetAll();
+    if (cfg.accessMode) UI.accessModeGroup.value = cfg.accessMode;
+    if (cfg.accessPassword) UI.accessPasswordField.value = cfg.accessPassword;
+    if (cfg.inviteCount) {
+      UI.inviteCountSlider.value = cfg.inviteCount;
+      UI.inviteCountLabel.textContent = cfg.inviteCount;
+    }
+    updateAccessModeUI();
+  } catch (err) {
+    console.warn('[ACCESS] Failed to load config:', err.message);
+  }
+}
+
+function updateAccessModeUI() {
+  const mode = UI.accessModeGroup.value;
+  UI.inviteSettings.style.display = mode === 'invite' ? '' : 'none';
+  UI.passwordSettings.style.display = mode === 'password' ? '' : 'none';
+  UI.approvalSettings.style.display = mode === 'approval' ? '' : 'none';
+}
+
+UI.accessModeGroup.addEventListener('change', () => {
+  const mode = UI.accessModeGroup.value;
+  saveConfig('accessMode', mode);
+  updateAccessModeUI();
+  if (mode === 'invite' && inviteLinks.length === 0) generateInviteLinks();
+  if (AppState.isStreaming) window.electronAPI.setAccessMode(mode);
+  addLog(I18n.t('log.accessModeChanged', { mode: I18n.t(`access.${mode}`) }), 'info');
+});
+
+UI.inviteCountSlider.addEventListener('input', () => {
+  UI.inviteCountLabel.textContent = UI.inviteCountSlider.value;
+});
+
+UI.inviteCountSlider.addEventListener('change', () => {
+  saveConfig('inviteCount', parseInt(UI.inviteCountSlider.value));
+  generateInviteLinks();
+});
+
+function generateInviteLinks() {
+  const count = parseInt(UI.inviteCountSlider.value) || 5;
+  const roomId = AppState.roomId || '';
+  // 优先使用服务器返回的真实 IP，其次使用端口输入框的值
+  const address = (AppState.serverInfo && AppState.serverInfo.address) || 'localhost';
+  const port = (AppState.serverInfo && AppState.serverInfo.port) || parseInt(UI.portInput.value) || 3000;
+  const baseUrl = `http://${address}:${port}`;
+  inviteLinks = [];
+  for (let i = 0; i < count; i++) {
+    const token = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2) + Date.now().toString(36);
+    inviteLinks.push({ token, url: `${baseUrl}/room/${roomId}?token=${token}`, used: false });
+  }
+  renderInviteLinks();
+}
+
+function renderInviteLinks() {
+  const container = UI.inviteLinksContainer;
+  const count = inviteLinks.length;
+  const shouldCollapse = count > 5;
+  const disabled = !AppState.isStreaming;
+  let html = '';
+  inviteLinks.forEach((link, i) => {
+    html += `<div class="invite-link-item" data-index="${i}">
+      <span class="link-text">${link.url}</span>
+      <mdui-button variant="text" size="small" data-copy-index="${i}" icon="content_copy" data-i18n="access.copyLink"${disabled ? ' disabled' : ''}>${I18n.t('access.copyLink')}</mdui-button>
+    </div>`;
+  });
+  if (shouldCollapse) {
+    container.innerHTML = `<div class="invite-links-collapsed" id="inviteLinksList">${html}</div>
+      <mdui-button variant="text" id="expandLinksBtn" style="width:100%;margin-top:4px;">${I18n.t('access.showAll', { count })}</mdui-button>`;
+    const expandBtn = document.getElementById('expandLinksBtn');
+    if (expandBtn) expandBtn.addEventListener('click', expandInviteLinks);
+  } else {
+    container.innerHTML = `<div id="inviteLinksList">${html}</div>`;
+  }
+}
+
+// 更新复制按钮状态
+function updateCopyButtonsState() {
+  const disabled = !AppState.isStreaming;
+  document.querySelectorAll('mdui-button[data-copy-index]').forEach(btn => {
+    if (disabled) {
+      btn.setAttribute('disabled', '');
+    } else {
+      btn.removeAttribute('disabled');
+    }
+  });
+}
+
+// 事件委托：处理复制按钮点击
+UI.inviteLinksContainer.addEventListener('click', (e) => {
+  const btn = e.target.closest('mdui-button[data-copy-index]');
+  if (btn) {
+    e.stopPropagation();
+    const index = parseInt(btn.getAttribute('data-copy-index'));
+    copyInviteLink(index);
+  }
+});
+
+function showCopyToast(success, index) {
+  const msg = success ? I18n.t('access.linkCopied', { n: index + 1 }) : I18n.t('access.copyFailed');
+  // 使用 MDUI snackbar
+  if (typeof mdui !== 'undefined' && mdui.snackbar) {
+    mdui.snackbar({
+      message: msg,
+      placement: 'bottom',
+      duration: 1500
+    });
+  }
+}
+
+window.copyInviteLink = function(index) {
+  const link = inviteLinks[index];
+  if (link) {
+    window.electronAPI.copyToClipboard(link.url).then(() => {
+      addLog(I18n.t('access.linkCopied', { n: index + 1 }), 'success');
+      showCopyToast(true, index);
+    }).catch(() => {
+      addLog(I18n.t('access.copyFailed'), 'error');
+      showCopyToast(false, index);
+    });
+  }
+};
+
+window.expandInviteLinks = function() {
+  const list = document.getElementById('inviteLinksList');
+  if (list) list.classList.remove('invite-links-collapsed');
+  const btn = list?.parentElement?.querySelector('mdui-button');
+  if (btn) btn.style.display = 'none';
+};
+
+UI.accessPasswordField.addEventListener('change', () => {
+  saveConfig('accessPassword', UI.accessPasswordField.value);
+  if (AppState.isStreaming) window.electronAPI.setAccessPassword(UI.accessPasswordField.value);
+  addLog(I18n.t('log.passwordSet'), 'info');
+});
+
+window.electronAPI.onApprovalRequest((data) => {
+  pendingApprovals.set(data.socketId, data);
+  renderApprovalList();
+  addLog(I18n.t('log.approvalRequest', { name: data.username }), 'info');
+});
+
+function renderApprovalList() {
+  const list = UI.approvalList;
+  const empty = UI.approvalEmpty;
+  if (pendingApprovals.size === 0) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  let html = '';
+  pendingApprovals.forEach((data, socketId) => {
+    html += `<div class="approval-item" data-socket-id="${socketId}">
+      <div class="user-info">
+        <div class="user-name">${data.username}</div>
+        <div class="user-ip">${data.ip}</div>
+      </div>
+      <div class="approval-actions">
+        <button class="approval-btn approve-btn" data-action="approve" data-socket-id="${socketId}">
+          <i class="material-icons">check</i>
+        </button>
+        <button class="approval-btn reject-btn" data-action="reject" data-socket-id="${socketId}">
+          <i class="material-icons">close</i>
+        </button>
+      </div>
+    </div>`;
+  });
+  list.innerHTML = html;
+}
+
+// 事件委托：处理审批按钮点击
+UI.approvalList.addEventListener('click', (e) => {
+  const btn = e.target.closest('.approval-btn');
+  if (!btn) return;
+  const socketId = btn.getAttribute('data-socket-id');
+  const action = btn.getAttribute('data-action');
+  if (action === 'approve') {
+    window.electronAPI.approveAccess(socketId);
+    pendingApprovals.delete(socketId);
+    renderApprovalList();
+    addLog(I18n.t('log.approvalApproved', { id: socketId.slice(0, 6) }), 'success');
+  } else if (action === 'reject') {
+    window.electronAPI.rejectAccess(socketId);
+    pendingApprovals.delete(socketId);
+    renderApprovalList();
+    addLog(I18n.t('log.approvalRejected', { id: socketId.slice(0, 6) }), 'warn');
+  }
+});
+
 // ============ 语言切换 ============
 UI.langSelect.addEventListener('change', () => {
   I18n.setLanguage(UI.langSelect.value);
   saveConfig('language', UI.langSelect.value);
+  if (window.updateLangAutoLabel) window.updateLangAutoLabel();
 });
 
 // Re-render dynamic text on language change
@@ -460,6 +668,37 @@ function setLogLevel(level, save = true) {
   });
   if (save) saveConfig('logLevel', level);
 }
+
+// 日志区右键菜单（使用mdui-dropdown）
+const logDropdown = document.getElementById('logDropdown');
+const ctxCopy = document.getElementById('ctxCopy');
+const ctxSelectAll = document.getElementById('ctxSelectAll');
+
+// 监听dropdown打开事件，根据是否有选中文本控制复制按钮显示
+logDropdown.addEventListener('open', (e) => {
+  const selection = window.getSelection();
+  const hasSelection = selection.toString().length > 0;
+  ctxCopy.style.display = hasSelection ? '' : 'none';
+});
+
+// 复制菜单项点击
+ctxCopy.addEventListener('click', () => {
+  const selection = window.getSelection();
+  const selectedText = selection.toString();
+  if (selectedText) {
+    window.electronAPI.copyToClipboard(selectedText);
+    addLog(I18n.t('log.copied'), 'info');
+  }
+});
+
+// 全选菜单项点击
+ctxSelectAll.addEventListener('click', () => {
+  const range = document.createRange();
+  range.selectNodeContents(UI.logContainer);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+});
 
 const originalConsoleLog = console.log;
 console.log = function(...args) { originalConsoleLog.apply(console, args); addLog(args.join(' '), 'info'); };
@@ -656,4 +895,132 @@ setTimeout(() => ToolbarBridge.syncI18n(), 100);
 // 语言切换时同步i18n到工具栏
 I18n.onChange(() => {
   ToolbarBridge.syncI18n();
+});
+
+// ============ 输入框右键菜单（使用mdui-dropdown） ============
+// 辅助函数：获取mdui-text-field内部的input元素
+function getInputElement(mduiTextField) {
+  return mduiTextField.querySelector('input') || mduiTextField.input;
+}
+
+// 端口输入框右键菜单
+const portDropdown = document.getElementById('portDropdown');
+const portInput = document.getElementById('portInput');
+const portCut = document.getElementById('portCut');
+const portCopy = document.getElementById('portCopy');
+const portPaste = document.getElementById('portPaste');
+const portSelectAll = document.getElementById('portSelectAll');
+
+portDropdown?.addEventListener('open', () => {
+  const input = getInputElement(portInput);
+  if (input) {
+    const hasSelection = input.selectionStart !== input.selectionEnd;
+    const hasValue = input.value.length > 0;
+    portCut.style.display = hasSelection ? '' : 'none';
+    portCopy.style.display = hasSelection ? '' : 'none';
+    portSelectAll.style.display = hasValue ? '' : 'none';
+  }
+});
+
+portCut?.addEventListener('click', () => {
+  const input = getInputElement(portInput);
+  if (input && input.selectionStart !== input.selectionEnd) {
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const text = input.value.substring(start, end);
+    window.electronAPI.copyToClipboard(text);
+    input.value = input.value.substring(0, start) + input.value.substring(end);
+    input.selectionStart = input.selectionEnd = start;
+    input.dispatchEvent(new Event('input'));
+  }
+});
+
+portCopy?.addEventListener('click', () => {
+  const input = getInputElement(portInput);
+  if (input) {
+    const text = input.value.substring(input.selectionStart, input.selectionEnd);
+    window.electronAPI.copyToClipboard(text);
+  }
+});
+
+portPaste?.addEventListener('click', async () => {
+  const input = getInputElement(portInput);
+  if (input) {
+    try {
+      const text = await navigator.clipboard.readText();
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      input.value = input.value.substring(0, start) + text + input.value.substring(end);
+      input.selectionStart = input.selectionEnd = start + text.length;
+      input.dispatchEvent(new Event('input'));
+    } catch (err) {
+      console.warn('Paste failed:', err);
+    }
+  }
+});
+
+portSelectAll?.addEventListener('click', () => {
+  const input = getInputElement(portInput);
+  if (input) input.select();
+});
+
+// 密码输入框右键菜单
+const passwordDropdown = document.getElementById('passwordDropdown');
+const accessPasswordField = document.getElementById('accessPasswordField');
+const pwdCut = document.getElementById('pwdCut');
+const pwdCopy = document.getElementById('pwdCopy');
+const pwdPaste = document.getElementById('pwdPaste');
+const pwdSelectAll = document.getElementById('pwdSelectAll');
+
+passwordDropdown?.addEventListener('open', () => {
+  const input = getInputElement(accessPasswordField);
+  if (input) {
+    const hasSelection = input.selectionStart !== input.selectionEnd;
+    const hasValue = input.value.length > 0;
+    pwdCut.style.display = hasSelection ? '' : 'none';
+    pwdCopy.style.display = hasSelection ? '' : 'none';
+    pwdSelectAll.style.display = hasValue ? '' : 'none';
+  }
+});
+
+pwdCut?.addEventListener('click', () => {
+  const input = getInputElement(accessPasswordField);
+  if (input && input.selectionStart !== input.selectionEnd) {
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const text = input.value.substring(start, end);
+    window.electronAPI.copyToClipboard(text);
+    input.value = input.value.substring(0, start) + input.value.substring(end);
+    input.selectionStart = input.selectionEnd = start;
+    input.dispatchEvent(new Event('input'));
+  }
+});
+
+pwdCopy?.addEventListener('click', () => {
+  const input = getInputElement(accessPasswordField);
+  if (input) {
+    const text = input.value.substring(input.selectionStart, input.selectionEnd);
+    window.electronAPI.copyToClipboard(text);
+  }
+});
+
+pwdPaste?.addEventListener('click', async () => {
+  const input = getInputElement(accessPasswordField);
+  if (input) {
+    try {
+      const text = await navigator.clipboard.readText();
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      input.value = input.value.substring(0, start) + text + input.value.substring(end);
+      input.selectionStart = input.selectionEnd = start + text.length;
+      input.dispatchEvent(new Event('input'));
+    } catch (err) {
+      console.warn('Paste failed:', err);
+    }
+  }
+});
+
+pwdSelectAll?.addEventListener('click', () => {
+  const input = getInputElement(accessPasswordField);
+  if (input) input.select();
 });

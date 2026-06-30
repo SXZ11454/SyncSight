@@ -1,0 +1,253 @@
+/* SyncSight Receiver Styles */
+
+/* Font definitions */
+@font-face {
+  font-family: 'Roboto';
+  src: url('/assets/Roboto-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Noto Sans SC';
+  src: url('/assets/NotoSansSC-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* MDUI Color Variables */
+:root {
+  --md-sys-color-primary: #6750a4;
+  --md-sys-color-on-primary: #fff;
+  --md-sys-color-primary-container: #eaddff;
+  --md-sys-color-on-primary-container: #21005d;
+  --md-sys-color-secondary: #625b71;
+  --md-sys-color-surface: #fef7ff;
+  --md-sys-color-surface-container: #f3edf7;
+  --md-sys-color-surface-container-low: #f7f2fa;
+  --md-sys-color-surface-container-high: #ece6f0;
+  --md-sys-color-on-surface: #1d1b20;
+  --md-sys-color-on-surface-variant: #49454f;
+  --md-sys-color-outline: #79747e;
+  --md-sys-color-outline-variant: #cac4d0;
+  --md-sys-color-error: #b3261e;
+  --md-sys-color-on-error: #fff;
+  --md-sys-color-error-container: #f9ded8;
+  --md-sys-color-on-error-container: #410e0b;
+  --md-sys-color-success: #386a20;
+  --md-sys-color-warning: #f9a825;
+}
+
+/* Base styles */
+* { margin: 0; padding: 0; box-sizing: border-box; cursor: default; user-select: none; -webkit-user-select: none; font-family: 'Roboto', 'Noto Sans SC', sans-serif; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--md-sys-color-surface); font-family: 'Roboto', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.material-icons { font-size: 24px; vertical-align: middle; }
+
+/* Input fields - allow text selection and context menu */
+mdui-text-field,
+mdui-text-field input,
+mdui-text-field textarea,
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* Floating Panel */
+#panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+#panel-toggle {
+  flex-shrink: 0;
+}
+
+#panel-body {
+  background: var(--md-sys-color-surface-container);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  overflow: visible;
+  transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left center;
+  white-space: nowrap;
+}
+
+#panel-body.collapsed {
+  opacity: 0;
+  transform: scaleX(0) translateX(-8px);
+  max-width: 0;
+  padding: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Panel Row */
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--md-sys-color-on-surface);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.panel-row .material-icons {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.panel-row mdui-select {
+  --mdui-shape-corner-extra-small: 12px;
+}
+.panel-row.error-status {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+/* Divider */
+.panel-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--md-sys-color-outline-variant);
+  flex-shrink: 0;
+}
+
+/* Seed Badge */
+#seed-badge {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--md-sys-color-success);
+  font-size: 12px;
+  font-weight: 500;
+}
+#seed-badge .material-icons { font-size: 14px; }
+
+/* Language Select */
+#lang-wrapper {
+  position: relative;
+}
+#langSelect {
+  min-width: 100px;
+}
+
+/* Error Modal */
+#error-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-error);
+  padding: 20px 28px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  display: none;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  max-width: 90%;
+  text-align: center;
+}
+#error-modal .material-icons { font-size: 32px; margin-bottom: 12px; display: block; }
+#error-modal.show {
+  display: block;
+  animation: modal-fade-in 0.3s ease-out;
+}
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+#error-modal .close-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--md-sys-color-on-surface);
+  font-size: 24px;
+  padding: 4px 8px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+#error-modal .close-btn:hover {
+  opacity: 1;
+}
+#error-modal .error-message {
+  margin-top: 8px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* Access Overlay */
+#access-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+#access-overlay.show {
+  display: flex;
+}
+.access-card {
+  background: var(--md-sys-color-surface-container, #fff);
+  border-radius: 28px;
+  padding: 32px 28px;
+  width: 90%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.access-card .material-icons {
+  font-size: 48px;
+  color: var(--md-sys-color-primary, #6750a4);
+  margin-bottom: 16px;
+}
+.access-card h2 {
+  font-size: 22px;
+  margin: 0 0 8px;
+  color: var(--md-sys-color-on-surface, #1c1b1f);
+}
+.access-card p {
+  font-size: 14px;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+  margin: 0 0 20px;
+}
+.access-card mdui-text-field {
+  width: 100%;
+  margin-bottom: 16px;
+}
+.access-card mdui-button {
+  width: 100%;
+}
+#access-status {
+  font-size: 13px;
+  margin-top: 12px;
+  min-height: 20px;
+}
+#access-status.pending { color: var(--md-sys-color-warning); }
+#access-status.error { color: var(--md-sys-color-error); }
+#access-status.success { color: var(--md-sys-color-success); }

@@ -5,119 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SyncSight Toolbar</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #00000000 !important;
-      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* 工具栏容器 — 可拖动区域 */
-    .toolbar {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0;
-      padding: 8px 12px 10px;
-      background: var(--mdui-color-surface-container-high, #2c2e33);
-      border-radius: 20px;
-      border: none;
-      /* 整个容器可拖动（按钮内部 no-drag） */
-      -webkit-app-region: drag;
-      /* 弹性缩放进入动画 */
-      transform-origin: center center;
-      transform: scale(0);
-      opacity: 0;
-      animation: toolbarIn 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
-
-    @keyframes toolbarIn {
-      from { transform: scale(0) translateY(20px); opacity: 0; }
-      to   { transform: scale(1) translateY(0); opacity: 1; }
-    }
-
-    .toolbar.exit {
-      animation: toolbarOut 0.28s cubic-bezier(0.55, 0, 1, 0.45) forwards;
-    }
-
-    @keyframes toolbarOut {
-      from { transform: scale(1) translateY(0); opacity: 1; }
-      to   { transform: scale(0) translateY(16px); opacity: 0; }
-    }
-
-    /* 按钮组 — MDUI 3 icon-button 容器风格 */
-    .tb-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      cursor: pointer;
-      padding: 6px 10px;
-      border-radius: 16px;
-      transition: background-color 0.15s ease, transform 0.12s ease;
-      min-width: 58px;
-      -webkit-app-region: no-drag;  /* 按钮区域不触发拖动 */
-    }
-    .tb-item:hover { background-color: var(--mdui-color-on-surface, #dadce0); background-color: color-mix(in srgb, var(--mdui-color-on-surface, #dadce0) 10%, transparent); }
-    .tb-item:active { transform: scale(0.94); }
-
-    /* 图标按钮 — MDUI 3 filled tonal 风格 */
-    .tb-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      transition: background-color 0.2s ease, color 0.2s ease;
-    }
-    /* on 状态：filled tonal（主色容器 + 白字） */
-    .tb-icon.on {
-      color: var(--mdui-color-on-secondary-container, #ffffff);
-      background-color: var(--mdui-color-secondary-container, #4a4458);
-    }
-    /* off 状态：outlined（透明底 + 弱色） */
-    .tb-icon.off {
-      color: var(--mdui-color-outline, #9aa0a6);
-      background-color: transparent;
-    }
-    /* 停止按钮 — error 色 */
-    .tb-icon.danger {
-      color: var(--mdui-color-on-error, #fff);
-      background-color: var(--mdui-color-error, #b3261e);
-    }
-    .tb-icon.danger:hover {
-      background-color: #8b1a14;
-    }
-
-    /* 标签 — MDUI 3 label-medium */
-    .tb-label {
-      font-size: 11px;
-      line-height: 16px;
-      font-weight: 500;
-      letter-spacing: 0.01em;
-      color: var(--mdui-color-on-surface-variant, #9aa0a6);
-      white-space: nowrap;
-      text-align: center;
-    }
-
-    /* 分隔线 — MDUI 3 divider */
-    .tb-sep {
-      width: 1px;
-      height: 36px;
-      background: var(--mdui-color-outline-variant, #49454f);
-      margin: 0 5px;
-      align-self: center;
-      flex-shrink: 0;
-    }
-  </style>
+  <link rel="stylesheet" href="./css/toolbar.css" />
 </head>
 <body>
   <div class="toolbar" id="toolbar">
@@ -128,7 +16,7 @@
     </div>
     <!-- 共享画面 -->
     <div class="tb-item" id="tbVideo">
-      <div class="tb-icon on" id="tbVideoIcon"><span class="material-icons">videocam</span></div>
+      <div class="tb-icon on" id="tbVideoIcon"><span class="material-icons">screen_share</span></div>
       <div class="tb-label" data-i18n="toolbar.video">共享画面</div>
     </div>
     <!-- 摄像头 -->

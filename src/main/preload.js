@@ -8,6 +8,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendSignaling: (targetId, type, data) => ipcRenderer.invoke('send-signaling', targetId, type, data),
   setRoomMode: (mode) => ipcRenderer.invoke('set-room-mode', mode),
   
+  // 访问控制
+  setAccessMode: (mode) => ipcRenderer.invoke('set-access-mode', mode),
+  setAccessPassword: (pwd) => ipcRenderer.invoke('set-access-password', pwd),
+  registerInviteToken: (token) => ipcRenderer.invoke('register-invite-token', token),
+  approveAccess: (socketId) => ipcRenderer.invoke('approve-access', socketId),
+  rejectAccess: (socketId) => ipcRenderer.invoke('reject-access', socketId),
+  onApprovalRequest: (callback) => {
+    ipcRenderer.on('approval-request', (_event, data) => callback(data));
+  },
+  
   // 摄像头窗口
   openCameraWindow: (cameraId) => ipcRenderer.invoke('open-camera-window', cameraId),
   closeCameraWindow: () => ipcRenderer.invoke('close-camera-window'),
@@ -35,6 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   configGetAll: () => ipcRenderer.invoke('config-get-all'),
   configSet: (key, value) => ipcRenderer.invoke('config-set', key, value),
   configSetAll: (obj) => ipcRenderer.invoke('config-set-all', obj),
+  
+  // 剪贴板
+  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   
   // 事件监听
   onSignalingMessage: (callback) => {

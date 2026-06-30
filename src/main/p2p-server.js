@@ -8,8 +8,109 @@ class P2PServer {
   constructor() {
     this.server = null;
     this.io = null;
-    this.rooms = new Map(); // roomId -> { host, clients: Map<socketId, info>, mode: 'star'|'bt', seeds: Set<socketId> }
+    this.rooms = new Map();
     this.port = null;
+    // 访问控制
+    this.accessMode = 'public'; // public | invite | password | approval
+    this.accessPassword = '';
+    this.validTokens = new Set(); // 邀请模式的有效 token
+    this.pendingApprovals = new Map(); // socketId -> { username, ip, roomId }
+    this.approvedClients = new Set(); // 已批准的 socketId
+  }
+
+  setAccessMode(mode) {
+    this.accessMode = mode;
+    if (mode === 'invite') {
+      this.validTokens.clear();
+    } else if (mode === 'approval') {
+      this.pendingApprovals.clear();
+      this.approvedClients.clear();
+    }
+    console.log('[P2P] Access mode set to:', mode);
+  }
+
+  setAccessPassword(pwd) {
+    this.accessPassword = pwd;
+    console.log('[P2P] Access password updated');
+  }
+
+  addInviteToken(token) {
+    this.validTokens.add(token);
+  }
+
+  clearInviteTokens() {
+    this.validTokens.clear();
+  }
+
+  approveAccess(socketId) {
+    this.approvedClients.add(socketId);
+    this.pendingApprovals.delete(socketId);
+    console.log('[P2P] Approved access for:', socketId);
+  }
+
+  rejectAccess(socketId) {
+    this.pendingApprovals.delete(socketId);
+    // 通知客户端被拒绝
+    if (this.io) {
+      this.io.to(socketId).emit('ACCESS_REJECTED', { reason: '访问被拒绝' });
+    }
+    console.log('[P2P] Rejected access for:', socketId);
+  }
+
+  // 验证访问权限
+  validateAccess(socket, roomId, credentials, callback) {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      if (callback) callback({ success: false, error: '房间不存在', accessMode: this.accessMode });
+      return false;
+    }
+
+    switch (this.accessMode) {
+      case 'public':
+        return true;
+
+      case 'invite': {
+        const token = credentials?.token;
+        if (!token || !this.validTokens.has(token)) {
+          if (callback) callback({ success: false, error: '无效的邀请链接', accessMode: 'invite' });
+          socket.emit('ACCESS_DENIED', { reason: '无效的邀请链接', accessMode: 'invite' });
+          return false;
+        }
+        return true;
+      }
+
+      case 'password': {
+        const password = credentials?.password;
+        if (password !== this.accessPassword) {
+          if (callback) callback({ success: false, error: '密码错误', accessMode: 'password' });
+          socket.emit('ACCESS_DENIED', { reason: '密码错误', accessMode: 'password' });
+          return false;
+        }
+        return true;
+      }
+
+      case 'approval': {
+        if (this.approvedClients.has(socket.id)) {
+          return true;
+        }
+        // 发送审批请求给主机
+        const clientInfo = {
+          socketId: socket.id,
+          username: credentials?.username || `User-${socket.id.slice(0, 4)}`,
+          ip: socket.request.socket.remoteAddress,
+          roomId
+        };
+        this.pendingApprovals.set(socket.id, clientInfo);
+        if (room.host) {
+          this.io.to(room.host).emit('ACCESS_REQUEST', clientInfo);
+        }
+        if (callback) callback({ success: false, pending: true, message: '等待主机批准', accessMode: 'approval' });
+        return false;
+      }
+
+      default:
+        return true;
+    }
   }
 
   start(port = 3000) {
@@ -129,8 +230,8 @@ class P2PServer {
         }
       });
 
-      // 加入房间（接收端）- 无验证，自动创建或加入
-      socket.on('JOIN_ROOM', ({ roomId, username }, callback) => {
+      // 加入房间（接收端）- 带权限验证
+      socket.on('JOIN_ROOM', ({ roomId, username, token, password }, callback) => {
         let room = this.rooms.get(roomId);
         
         console.log('[P2P] JOIN_ROOM request:', { 
@@ -141,9 +242,7 @@ class P2PServer {
         });
         
         // 如果房间不存在，检查是否有主机在线
-        // 如果没有主机，拒绝加入
         if (!room) {
-          // 检查是否有主机 socket 连接
           let hasHost = false;
           for (const [rId, r] of this.rooms.entries()) {
             if (r.host) {
@@ -159,16 +258,20 @@ class P2PServer {
             return;
           }
           
-          // 房间不存在但有主机在线，可能是房间信息丢失，创建一个临时房间
           console.log('[P2P] Creating temporary room for:', roomId);
           room = {
-            host: null, // 未知主机
+            host: null,
             clients: new Map()
           };
           this.rooms.set(roomId, room);
         }
 
-        // 检查房间是否已满（可选限制）
+        // 访问权限验证
+        const credentials = { username, token, password };
+        const accessResult = this.validateAccess(socket, roomId, credentials, callback);
+        if (!accessResult) return;
+
+        // 检查房间是否已满
         if (room.clients.size >= 10) {
           if (callback) callback({ success: false, error: '房间已满' });
           socket.emit('ROOM_FULL', { roomId });
@@ -221,13 +324,12 @@ class P2PServer {
       });
 
       // 加入任意可用房间（自动加入第一个有主机的房间）
-      socket.on('JOIN_ANY_ROOM', ({ username }, callback) => {
+      socket.on('JOIN_ANY_ROOM', ({ username, token, password }, callback) => {
         console.log('[P2P] === JOIN_ANY_ROOM request ===');
         console.log('[P2P] Username:', username);
         console.log('[P2P] Socket ID:', socket.id);
         console.log('[P2P] Available rooms:', Array.from(this.rooms.keys()));
         
-        // 查找第一个有主机的房间
         let targetRoom = null;
         let targetRoomId = null;
         
@@ -247,6 +349,11 @@ class P2PServer {
           socket.emit('ERROR', { message: '没有可用的主机，请先启动发送端' });
           return;
         }
+
+        // 访问权限验证
+        const credentials = { username, token, password };
+        const accessResult = this.validateAccess(socket, targetRoomId, credentials, callback);
+        if (!accessResult) return;
 
         // 检查房间是否已满
         if (targetRoom.clients.size >= 10) {
@@ -369,18 +476,33 @@ class P2PServer {
         console.log(`[P2P] ${socket.id} left room ${roomId}`);
       });
 
+      // 访问控制：主机批准/拒绝
+      socket.on('APPROVE_ACCESS', ({ roomId, socketId }) => {
+        this.approveAccess(socketId);
+        // 通知客户端已批准
+        this.io.to(socketId).emit('ACCESS_APPROVED', { roomId });
+        console.log(`[P2P] Host approved access for ${socketId} in room ${roomId}`);
+      });
+
+      socket.on('REJECT_ACCESS', ({ roomId, socketId }) => {
+        this.rejectAccess(socketId);
+        console.log(`[P2P] Host rejected access for ${socketId} in room ${roomId}`);
+      });
+
       // 断开连接
       socket.on('disconnect', () => {
         console.log(`[P2P] Client disconnected: ${socket.id}`);
         
+        // 清理待审批列表
+        this.pendingApprovals.delete(socket.id);
+        this.approvedClients.delete(socket.id);
+        
         // 从所有房间中移除
         for (const [roomId, room] of this.rooms.entries()) {
           if (room.host === socket.id) {
-            // 房主断开，通知所有客户端并关闭房间
             this.io.to(roomId).emit('HOST_LEFT', { roomId });
             this.rooms.delete(roomId);
           } else {
-            // 从 seed 列表中移除
             if (room.seeds) {
               room.seeds.delete(socket.id);
             }

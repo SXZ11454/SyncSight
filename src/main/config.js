@@ -12,7 +12,10 @@ const DEFAULTS = {
   mode: 'bt',
   logLevel: 'info',
   frameRate: 30,
-  floatingToolbar: true
+  floatingToolbar: true,
+  accessMode: 'public',       // public | invite | password | approval
+  accessPassword: '',         // 密码模式的密码
+  inviteCount: 5              // 邀请模式生成的链接数量
 };
 
 let _configPath = null;

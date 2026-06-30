@@ -46,12 +46,12 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // 隐藏滚动条但保留滚动功能
+  // 隐藏滚动条但保留滚动功能（排除日志区）
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(`
-      ::-webkit-scrollbar { display: none; }
-      html { scrollbar-width: none; }
-      body { -ms-overflow-style: none; }
+      :not(.log-container)::-webkit-scrollbar { display: none; }
+      html:not(.log-container) { scrollbar-width: none; }
+      body:not(.log-container) { -ms-overflow-style: none; }
     `);
   });
 
@@ -95,6 +95,12 @@ ipcMain.handle('config-set-all', (event, obj) => {
   return true;
 });
 
+ipcMain.handle('copy-to-clipboard', (event, text) => {
+  const { clipboard } = require('electron');
+  clipboard.writeText(text);
+  return true;
+});
+
 app.on('window-all-closed', () => {
   console.log('All windows closed, stopping sharing...');
   stopSharing();
@@ -130,6 +136,21 @@ async function startServer(port, mode = 'star') {
   try {
     if (!p2pServer) {
       p2pServer = new P2PServer();
+    }
+    
+    // 加载访问控制配置
+    const cfg = Config.get();
+    p2pServer.setAccessMode(cfg.accessMode || 'public');
+    if (cfg.accessPassword) {
+      p2pServer.setAccessPassword(cfg.accessPassword);
+    }
+    if (cfg.accessMode === 'invite' && cfg.inviteCount) {
+      // 生成邀请 token
+      p2pServer.clearInviteTokens();
+      for (let i = 0; i < cfg.inviteCount; i++) {
+        const token = require('crypto').randomBytes(16).toString('hex');
+        p2pServer.addInviteToken(token);
+      }
     }
     
     const result = await p2pServer.start(port);
@@ -222,6 +243,14 @@ function setupHostSocketListeners(socket) {
   // 监听主机离开（不应该发生）
   socket.on('HOST_LEFT', (data) => {
     console.log('[Main] Host left:', data);
+  });
+  
+  // 访问控制：审批请求
+  socket.on('ACCESS_REQUEST', (data) => {
+    console.log('[Main] Access request from:', data.username, data.socketId);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('approval-request', data);
+    }
   });
   
   socket.on('disconnect', () => {
@@ -317,6 +346,52 @@ ipcMain.handle('set-room-mode', async (event, mode) => {
     console.warn('[IPC] Cannot set room mode: host socket not connected or no room');
     return { success: false, error: 'Host socket not connected' };
   }
+});
+
+// ============ 访问控制 IPC ============
+
+ipcMain.handle('set-access-mode', async (event, mode) => {
+  if (p2pServer) {
+    p2pServer.setAccessMode(mode);
+    // 保存配置
+    Config.set('accessMode', mode);
+  }
+  console.log('[Main] Access mode set to:', mode);
+  return { success: true };
+});
+
+ipcMain.handle('set-access-password', async (event, pwd) => {
+  if (p2pServer) {
+    p2pServer.setAccessPassword(pwd);
+  }
+  Config.set('accessPassword', pwd);
+  console.log('[Main] Access password updated');
+  return { success: true };
+});
+
+ipcMain.handle('register-invite-token', async (event, token) => {
+  if (p2pServer) {
+    p2pServer.addInviteToken(token);
+  }
+  console.log('[Main] Registered invite token');
+  return { success: true };
+});
+
+ipcMain.handle('approve-access', async (event, socketId) => {
+  if (p2pServer && global.hostSocket && global.hostSocket.connected && currentRoomId) {
+    p2pServer.approveAccess(socketId);
+    global.hostSocket.emit('APPROVE_ACCESS', { roomId: currentRoomId, socketId });
+  }
+  console.log('[Main] Approved access for:', socketId);
+  return { success: true };
+});
+
+ipcMain.handle('reject-access', async (event, socketId) => {
+  if (p2pServer) {
+    p2pServer.rejectAccess(socketId);
+  }
+  console.log('[Main] Rejected access for:', socketId);
+  return { success: true };
 });
 
 ipcMain.handle('stop-sharing', async () => {

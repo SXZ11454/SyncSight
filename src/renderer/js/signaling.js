@@ -228,6 +228,7 @@ const SignalingManager = {
         const modeLabel = mode === 'bt' ? ' [BT]' : ' [Star]';
         UI.serverUrl.textContent = url + modeLabel;
         UI.roomIdEl.textContent = roomId;
+        AppState.roomId = roomId;
         UI.addressRow.style.display = '';
         UI.roomIdRow.style.display = '';
         UI.statusDot.classList.add('active');
@@ -237,6 +238,12 @@ const SignalingManager = {
         UI.startBtn.disabled = true;
         UI.stopBtn.disabled = false;
         UI.portInput.disabled = true;
+
+        // 如果是邀请模式，重新生成链接（带上房间号）
+        if (UI.accessModeGroup && UI.accessModeGroup.value === 'invite') {
+          generateInviteLinks();
+        }
+        updateCopyButtonsState();
 
         addLog(I18n.t('log.sharingStarted'), 'success');
       } else {
@@ -266,6 +273,7 @@ const SignalingManager = {
       await window.electronAPI.stopSharing();
 
       AppState.isStreaming = false;
+      updateCopyButtonsState();
       // 隐藏浮动工具栏（独立窗口）
       window.electronAPI.hideToolbar();
       // 恢复源选择

@@ -5,7 +5,7 @@ const { ipcRenderer } = require('electron');
 // 按钮状态映射
 const btnMap = {
   mic:   { el: document.getElementById('tbMic'),   icon: document.getElementById('tbMicIcon'),   onIcon: 'mic',     offIcon: 'mic_off' },
-  video: { el: document.getElementById('tbVideo'), icon: document.getElementById('tbVideoIcon'), onIcon: 'videocam', offIcon: 'videocam_off' },
+  video: { el: document.getElementById('tbVideo'), icon: document.getElementById('tbVideoIcon'), onIcon: 'screen_share', offIcon: 'stop_screen_share' },
   camera:{ el: document.getElementById('tbCamera'),icon: document.getElementById('tbCameraIcon'),onIcon: 'videocam', offIcon: 'videocam_off' },
   audio: { el: document.getElementById('tbAudio'), icon: document.getElementById('tbAudioIcon'), onIcon: 'volume_up',offIcon: 'volume_off' }
 };

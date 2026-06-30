@@ -6,169 +6,62 @@
   <title data-i18n="receiver.title">SyncSight - 屏幕接收端</title>
   <link rel="stylesheet" href="/assets/mdui.css" />
   <link rel="stylesheet" href="/assets/icon.css" />
+  <link rel="stylesheet" href="/css/receiver.css" />
   <script src="/assets/mdui.global.js"></script>
   <script src="/socket.io.min.js"></script>
   <script src="/js/i18n.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; cursor: default; user-select: none; -webkit-user-select: none; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-    video { width: 100%; height: 100%; object-fit: contain; display: block; }
-    .material-icons { font-size: 24px; vertical-align: middle; }
-
-    /* 浮动面板 */
-    #panel {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      z-index: 100;
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    #panel-toggle {
-      flex-shrink: 0;
-      --mdui-shape-corner-full: 50%;
-    }
-
-    #panel-body {
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-width: 180px;
-      max-width: 240px;
-      overflow: hidden;
-      transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                  transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                  max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                  padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-                  min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-      transform-origin: left center;
-    }
-
-    #panel-body.collapsed {
-      opacity: 0;
-      transform: scaleX(0) translateX(-8px);
-      max-width: 0;
-      min-width: 0;
-      padding: 0;
-      pointer-events: none;
-    }
-
-    /* 面板内行 */
-    .panel-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #333;
-      font-size: 13px;
-    }
-    .panel-row .material-icons {
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-    .panel-row mdui-select {
-      width: 160px;
-      --mdui-shape-corner-extra-small: 12px;
-    }
-
-    /* Seed 徽章 */
-    #seed-badge {
-      display: none;
-      align-items: center;
-      gap: 4px;
-      color: #2e7d32;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    #seed-badge .material-icons { font-size: 14px; }
-
-    /* 错误弹窗 */
-    #error-modal {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: #2c2c2c;
-      color: #ef5350;
-      padding: 20px 28px;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: 500;
-      display: none;
-      z-index: 1000;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      max-width: 90%;
-      text-align: center;
-    }
-    #error-modal .material-icons { font-size: 32px; margin-bottom: 12px; display: block; }
-    #error-modal.show {
-      display: block;
-      animation: modal-fade-in 0.3s ease-out;
-    }
-    @keyframes modal-fade-in {
-      from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
-      to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    }
-    #error-modal .close-btn {
-      position: absolute;
-      top: 8px;
-      right: 12px;
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 24px;
-      padding: 4px 8px;
-      opacity: 0.8;
-      transition: opacity 0.2s;
-    }
-    #error-modal .close-btn:hover {
-      opacity: 1;
-    }
-    #error-modal .error-message {
-      margin-top: 8px;
-      font-size: 14px;
-      opacity: 0.9;
-    }
-  </style>
 </head>
 <body>
   <video id="video" autoplay playsinline controls></video>
 
+  <!-- 访问控制覆盖层 -->
+  <div id="access-overlay">
+    <div class="access-card">
+      <i class="material-icons" id="access-icon">lock</i>
+      <h2 id="access-title" data-i18n="access.verifyTitle">需要验证</h2>
+      <p id="access-desc"></p>
+      <div id="access-content"></div>
+      <div id="access-status"></div>
+    </div>
+  </div>
+
   <!-- 浮动面板 -->
   <div id="panel">
-    <mdui-button-icon id="panel-toggle" icon="settings" variant="tonal"></mdui-button-icon>
+    <mdui-fab id="panel-toggle" icon="settings" variant="surface"></mdui-fab>
     <div id="panel-body">
-      <!-- 状态 -->
+      <!-- 连接状态 -->
       <div class="panel-row" id="status">
         <i class="material-icons">wifi_find</i>
         <span data-i18n="receiver.connecting">正在连接...</span>
       </div>
+      <!-- 分隔线 -->
+      <div class="panel-divider"></div>
       <!-- Seed 徽章 -->
       <div class="panel-row" id="seed-badge">
         <i class="material-icons">hub</i>
         <span data-i18n="receiver.seedBadge">SEED 中继</span>
       </div>
+      <!-- 连入模式 -->
+      <div class="panel-row" id="access-mode-row" style="display:none;">
+        <i class="material-icons">lock</i>
+        <span id="access-mode-text"></span>
+      </div>
+      <!-- 分隔线 -->
+      <div class="panel-divider"></div>
       <!-- 语言选择 -->
-      <div class="panel-row">
+      <div class="panel-row" id="lang-wrapper">
         <i class="material-icons">language</i>
         <mdui-select id="langSelect" variant="outlined" value="auto">
           <mdui-menu-item value="auto" data-i18n="receiver.langAuto">自动选择 (简体中文)</mdui-menu-item>
-          <mdui-menu-item value="zh-CN">简体中文</mdui-menu-item>
-          <mdui-menu-item value="en-US">English</mdui-menu-item>
+          <mdui-menu-item value="zh-CN" data-i18n="receiver.langZh">简体中文</mdui-menu-item>
+          <mdui-menu-item value="en-US" data-i18n="receiver.langEn">English</mdui-menu-item>
         </mdui-select>
       </div>
     </div>
   </div>
   <div id="error-modal">
     <i class="material-icons">error</i>
-    <div id="error-title">错误</div>
+    <div id="error-title" data-i18n="receiver.errorTitle">错误</div>
     <div class="error-message" id="error-message"></div>
     <button class="close-btn" onclick="closeErrorModal()">
       <i class="material-icons">close</i>
@@ -191,7 +84,7 @@
       panelExpanded = !panelExpanded;
       panelBody.classList.toggle('collapsed', !panelExpanded);
       panelToggle.icon = panelExpanded ? 'settings' : 'settings';
-      panelToggle.setAttribute('variant', panelExpanded ? 'tonal' : 'filled');
+      panelToggle.variant = panelExpanded ? 'surface' : 'primary';
     });
 
     // 语言切换
@@ -199,6 +92,7 @@
       I18n.setLanguage(e.target.value);
       I18n.updateDOM();
       updateLangAutoLabel();
+      updateStatusText(currentStatusKey); // 刷新状态文本
     });
 
     // 更新"自动选择"选项的显示文本，反映当前系统语言
@@ -214,8 +108,9 @@
     console.log('[RECEIVER] Page loaded');
     
     if (typeof io === 'undefined') {
-      document.getElementById('status').textContent = I18n.t('receiver.socketNotLoaded');
-      document.getElementById('status').style.background = 'rgba(244, 67, 54, 0.9)';
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = I18n.t('receiver.socketNotLoaded');
+      statusEl.classList.add('error-status');
       throw new Error('Socket.IO not loaded');
     }
 
@@ -223,6 +118,23 @@
     const video = document.getElementById('video');
     const status = document.getElementById('status');
     const seedBadge = document.getElementById('seed-badge');
+    const accessModeRow = document.getElementById('access-mode-row');
+    const accessModeText = document.getElementById('access-mode-text');
+
+    // 显示连入模式
+    function showAccessMode(mode) {
+      if (!mode || mode === 'public') {
+        accessModeRow.style.display = 'none';
+        return;
+      }
+      accessModeRow.style.display = 'flex';
+      const modeLabels = {
+        invite: I18n.t('access.invite'),
+        password: I18n.t('access.password'),
+        approval: I18n.t('access.approval')
+      };
+      accessModeText.textContent = modeLabels[mode] || mode;
+    }
     
     // 页面加载后 0.5 秒尝试播放（解锁音频自动播放）
     setTimeout(() => {
@@ -235,10 +147,17 @@
     let currentRoomId = null;
     let currentMode = 'star';        // 当前房间模式
     let isFullscreen = false;
+    let currentStatusKey = 'receiver.connecting'; // 当前状态文本的 i18n key
     
     // BT 模式 - 中继发送相关
     let relayConnections = new Map(); // targetSocketId -> RTCPeerConnection (作为中继发送流给其他客户端)
     let isSeed = false;              // 是否已注册为 seed
+
+    // 更新状态文本（支持 i18n 刷新）
+    function updateStatusText(i18nKey) {
+      currentStatusKey = i18nKey;
+      status.textContent = I18n.t(i18nKey);
+    }
 
     // 错误弹窗管理
     function showError(message) {
@@ -293,24 +212,130 @@
       ]
     };
 
+    // ============ 访问控制 ============
+    const accessOverlay = document.getElementById('access-overlay');
+    const accessIcon = document.getElementById('access-icon');
+    const accessTitle = document.getElementById('access-title');
+    const accessDesc = document.getElementById('access-desc');
+    const accessContent = document.getElementById('access-content');
+    const accessStatus = document.getElementById('access-status');
+    let accessCredentials = {}; // { token, password }
+
+    // 解析 URL 参数获取邀请 token
+    function parseUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        accessCredentials.token = token;
+      }
+    }
+
+    // 显示访问验证 UI
+    function showAccessUI(mode) {
+      accessOverlay.classList.add('show');
+      accessStatus.textContent = '';
+      accessStatus.className = '';
+
+      switch (mode) {
+        case 'password':
+          accessIcon.textContent = 'lock';
+          accessTitle.textContent = I18n.t('access.passwordTitle');
+          accessDesc.textContent = I18n.t('access.passwordDesc');
+          accessContent.innerHTML = `
+            <mdui-text-field id="pwdInput" variant="outlined" type="text" maxlength="32" placeholder="${I18n.t('access.enterPassword')}"></mdui-text-field>
+            <mdui-button id="pwdSubmit" variant="filled" onclick="submitPassword()">${I18n.t('access.submit')}</mdui-button>
+          `;
+          break;
+
+        case 'approval':
+          accessIcon.textContent = 'person_add';
+          accessTitle.textContent = I18n.t('access.approvalTitle');
+          accessDesc.textContent = I18n.t('access.approvalDesc');
+          accessContent.innerHTML = `
+            <mdui-text-field id="nameInput" variant="outlined" placeholder="${I18n.t('access.enterName')}"></mdui-text-field>
+            <mdui-button id="approvalSubmit" variant="filled" onclick="submitApproval()">${I18n.t('access.requestAccess')}</mdui-button>
+          `;
+          break;
+
+        case 'invite':
+          accessIcon.textContent = 'link_off';
+          accessTitle.textContent = I18n.t('access.inviteTitle');
+          accessDesc.textContent = I18n.t('access.inviteDesc');
+          accessContent.innerHTML = `<p style="color:var(--md-sys-color-error)">${I18n.t('access.invalidInvite')}</p>`;
+          accessStatus.textContent = I18n.t('access.contactHost');
+          accessStatus.className = 'error';
+          break;
+
+        default:
+          accessOverlay.classList.remove('show');
+          break;
+      }
+    }
+
+    function hideAccessUI() {
+      accessOverlay.classList.remove('show');
+    }
+
+    function setAccessStatus(text, type) {
+      accessStatus.textContent = text;
+      accessStatus.className = type;
+    }
+
+    window.submitPassword = function() {
+      const pwd = document.getElementById('pwdInput')?.value || '';
+      if (!pwd) {
+        setAccessStatus(I18n.t('access.passwordRequired'), 'error');
+        return;
+      }
+      accessCredentials.password = pwd;
+      setAccessStatus(I18n.t('access.verifying'), 'pending');
+      tryJoinRoom();
+    };
+
+    window.submitApproval = function() {
+      const name = document.getElementById('nameInput')?.value || '';
+      if (!name) {
+        setAccessStatus(I18n.t('access.nameRequired'), 'error');
+        return;
+      }
+      accessCredentials.username = name;
+      setAccessStatus(I18n.t('access.waitingApproval'), 'pending');
+      tryJoinRoom();
+    };
+
     // ============ 连接服务器并加入房间 ============
+    parseUrlParams();
+    let joinAttempted = false;
+
     socket.on('connect', () => {
       console.log('[RECEIVER] Socket connected, ID:', socket.id);
-      status.textContent = I18n.t('receiver.connected');
+      updateStatusText('receiver.connected');
+      
+      if (!joinAttempted) {
+        tryJoinRoom();
+      }
+    });
+
+    async function tryJoinRoom() {
+      joinAttempted = true;
       
       socket.emit('JOIN_ANY_ROOM', { 
-        username: '接收端-' + Math.random().toString(36).substr(2, 5)
+        username: accessCredentials.username || (I18n.t('receiver.username') + '-' + Math.random().toString(36).substr(2, 5)),
+        token: accessCredentials.token,
+        password: accessCredentials.password
       }, (response) => {
         console.log('[RECEIVER] JOIN_ANY_ROOM response:', response);
+        
         if (response.success) {
+          hideAccessUI();
           currentRoomId = response.roomId;
           currentMode = response.mode || 'star';
+          showAccessMode(response.accessMode);
           console.log('[RECEIVER] Joined room:', currentRoomId, 'Mode:', currentMode);
           
           if (currentMode === 'bt' && response.relayFrom) {
-            // BT 模式：向 seed 发送加入请求（而不是向房主）
             console.log('[RECEIVER] BT mode: Sending JOIN_REQUEST to seed:', response.relayFrom);
-            status.textContent = I18n.t('receiver.btRelaying');
+            updateStatusText('receiver.btRelaying');
             socket.emit('SIGNALING', {
               roomId: currentRoomId,
               targetId: response.relayFrom,
@@ -318,9 +343,8 @@
               data: { socketId: socket.id }
             });
           } else {
-            // 星型模式或 BT 模式无 seed：直接向房主请求
             console.log('[RECEIVER] Sending JOIN_REQUEST to host:', response.hostId);
-            status.textContent = I18n.t('receiver.waitingStream');
+            updateStatusText('receiver.waitingStream');
             socket.emit('SIGNALING', {
               roomId: currentRoomId,
               targetId: response.hostId,
@@ -328,16 +352,89 @@
               data: { socketId: socket.id }
             });
           }
+        } else if (response.pending) {
+          // 许可模式：等待审批
+          setAccessStatus(response.message || I18n.t('access.waitingApproval'), 'pending');
         } else {
           console.error('[RECEIVER] Failed to join room:', response.error);
-          showError(I18n.t('receiver.joinFailed', { error: response.error || I18n.t('receiver.hostLeft') }));
+          const err = response.error || I18n.t('receiver.hostLeft');
+          const mode = response.accessMode;
+          
+          // 根据 accessMode 显示对应的验证 UI
+          if (mode === 'password') {
+            showAccessUI('password');
+            setAccessStatus(I18n.t('access.wrongPassword'), 'error');
+          } else if (mode === 'invite') {
+            showAccessUI('invite');
+          } else if (mode === 'approval' || response.pending) {
+            // 许可模式：等待审批
+            showAccessUI('approval');
+            setAccessStatus(response.message || I18n.t('access.waitingApproval'), 'pending');
+          } else {
+            showError(I18n.t('receiver.joinFailed', { error: err }));
+          }
         }
       });
+    }
+
+    // 访问控制：服务器响应
+    socket.on('ACCESS_DENIED', (data) => {
+      console.log('[RECEIVER] Access denied:', data.reason);
+      const mode = data.accessMode;
+      if (mode === 'password') {
+        showAccessUI('password');
+        setAccessStatus(data.reason, 'error');
+      } else if (mode === 'invite') {
+        showAccessUI('invite');
+      } else {
+        setAccessStatus(data.reason, 'error');
+      }
+    });
+
+    socket.on('ACCESS_APPROVED', (data) => {
+      console.log('[RECEIVER] Access approved, joining room:', data.roomId);
+      setAccessStatus(I18n.t('access.approved'), 'success');
+      setTimeout(() => {
+        hideAccessUI();
+        currentRoomId = data.roomId;
+        // 重新加入
+        socket.emit('JOIN_ROOM', {
+          roomId: data.roomId,
+          username: accessCredentials.username || I18n.t('receiver.username') + '-' + Math.random().toString(36).substr(2, 5)
+        }, (response) => {
+          if (response.success) {
+            currentMode = response.mode || 'star';
+            showAccessMode(response.accessMode);
+            if (currentMode === 'bt' && response.relayFrom) {
+              updateStatusText('receiver.btRelaying');
+              socket.emit('SIGNALING', {
+                roomId: currentRoomId,
+                targetId: response.relayFrom,
+                type: 'JOIN_REQUEST',
+                data: { socketId: socket.id }
+              });
+            } else {
+              updateStatusText('receiver.waitingStream');
+              socket.emit('SIGNALING', {
+                roomId: currentRoomId,
+                targetId: response.hostId,
+                type: 'JOIN_REQUEST',
+                data: { socketId: socket.id }
+              });
+            }
+          }
+        });
+      }, 1000);
+    });
+
+    socket.on('ACCESS_REJECTED', (data) => {
+      console.log('[RECEIVER] Access rejected:', data.reason);
+      setAccessStatus(data.reason || I18n.t('access.rejected'), 'error');
     });
 
     socket.on('disconnect', () => {
       console.log('[RECEIVER] Socket disconnected');
-      status.textContent = I18n.t('receiver.disconnected');
+      updateStatusText('receiver.disconnected');
     });
 
     socket.on('connect_error', (err) => {
@@ -427,14 +524,14 @@
           }
           
           if (event.track.kind === 'video') {
-            status.textContent = I18n.t('receiver.playing');
+            updateStatusText('receiver.playing');
             
             // 尝试播放（带声音）
             video.play().then(() => {
               console.log('[RECEIVER] Playback started with audio');
             }).catch(err => {
               console.warn('[RECEIVER] Auto-play failed, user interaction needed:', err);
-              status.textContent = I18n.t('receiver.clickToPlay');
+              updateStatusText('receiver.clickToPlay');
             });
 
             // BT 模式：收到流后注册为 seed
@@ -462,13 +559,13 @@
           console.log('[RECEIVER] Connection state:', peerConnection.connectionState);
           
           if (peerConnection.connectionState === 'connected') {
-            status.textContent = I18n.t('receiver.connectedStatus');
+            updateStatusText('receiver.connectedStatus');
           } else if (peerConnection.connectionState === 'failed') {
-            status.textContent = I18n.t('receiver.connectionFailed');
+            updateStatusText('receiver.connectionFailed');
             showError(I18n.t('receiver.connectionFailed'));
             if (peerConnection) { peerConnection.close(); peerConnection = null; }
           } else if (peerConnection.connectionState === 'disconnected') {
-            status.textContent = I18n.t('receiver.senderDisconnected');
+            updateStatusText('receiver.senderDisconnected');
             showError(I18n.t('receiver.senderDisconnected'));
             if (peerConnection) { peerConnection.close(); peerConnection = null; }
           } else if (peerConnection.connectionState === 'closed') {
